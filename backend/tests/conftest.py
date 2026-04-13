@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import settings
+from app.services.task_service import task_service
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +21,7 @@ def isolate_storage(tmp_path: Path) -> None:
     settings.storage_root.mkdir(parents=True, exist_ok=True)
     settings.upload_root.mkdir(parents=True, exist_ok=True)
     settings.dataset_metadata_root.mkdir(parents=True, exist_ok=True)
+    task_service.reset()
 
     try:
         yield
@@ -27,3 +29,4 @@ def isolate_storage(tmp_path: Path) -> None:
         settings.storage_root = original_storage_root
         settings.upload_root = original_upload_root
         settings.dataset_metadata_root = original_dataset_metadata_root
+        task_service.reset()

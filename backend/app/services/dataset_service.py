@@ -1,3 +1,5 @@
+from threading import Thread
+
 from fastapi import UploadFile
 
 from app.schemas.dataset import (
@@ -8,8 +10,10 @@ from app.schemas.dataset import (
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
+from app.schemas.task import TaskResponse
 from app.services.dataset_preview_service import DatasetPreviewService
 from app.services.dataset_upload_service import DatasetUploadService
+from app.services.task_service import task_service
 
 
 class DatasetService:
@@ -64,6 +68,33 @@ class DatasetService:
             record=record,
             data_file_path=data_file_path,
         )
+
+    def create_dataset_profile_task(self, dataset_id: str) -> TaskResponse:
+        """创建字段分析异步任务并在后台执行。"""
+        task = task_service.create_task(task_type="dataset_profile", dataset_id=dataset_id)
+
+        # 用后台线程执行字段分析，先把同步耗时逻辑从主请求里挪出去。
+        worker = Thread(
+            target=self._run_dataset_profile_task,
+            args=(task.id, dataset_id),
+            daemon=True,
+        )
+        worker.start()
+        return task
+
+    def get_task(self, task_id: str) -> TaskResponse:
+        """返回指定异步任务的当前状态。"""
+        return task_service.get_task(task_id)
+
+    def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
+        """在后台执行字段分析任务并更新状态。"""
+        try:
+            task_service.mark_running(task_id)
+            profile = self.get_dataset_profile(dataset_id)
+            task_service.mark_completed(task_id, profile.model_dump(mode="json"))
+        except Exception as exc:
+            # 当前阶段先把错误收敛成任务失败信息，避免线程异常直接丢失。
+            task_service.mark_failed(task_id, str(exc))
 
 
 # 提供默认服务实例，后续接入依赖注入时可以平滑替换。

@@ -8,3 +8,7 @@ class DatasetNotFoundError(Exception):
 
 class DatasetPreviewError(Exception):
     """表示数据集预览过程中的业务错误。"""
+
+
+class TaskNotFoundError(Exception):
+    """表示请求的异步任务不存在。"""

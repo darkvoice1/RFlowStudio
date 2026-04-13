@@ -10,6 +10,7 @@ from app.schemas.dataset import (
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
+from app.schemas.task import TaskResponse
 from app.services.dataset_service import dataset_service
 
 router = APIRouter(prefix="/datasets")
@@ -90,6 +91,23 @@ def get_dataset_profile(dataset_id: str) -> DatasetProfileResponse:
     except DatasetPreviewError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/profile-jobs",
+    response_model=TaskResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Create dataset profile job",
+)
+def create_dataset_profile_job(dataset_id: str) -> TaskResponse:
+    """创建字段分析异步任务，返回任务状态入口。"""
+    try:
+        return dataset_service.create_dataset_profile_task(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
 
