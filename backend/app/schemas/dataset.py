@@ -78,7 +78,7 @@ class DatasetPreviewResponse(BaseModel):
     preview_row_count: int
     limit: int
     has_more: bool
-    preview_format: Literal["csv"]
+    preview_format: Literal["csv", "xlsx"]
 
 
 class DatasetColumnProfile(BaseModel):
@@ -100,4 +100,4 @@ class DatasetProfileResponse(BaseModel):
     row_count: int
     column_count: int
     columns: list[DatasetColumnProfile]
-    profile_format: Literal["csv"]
+    profile_format: Literal["csv", "xlsx"]

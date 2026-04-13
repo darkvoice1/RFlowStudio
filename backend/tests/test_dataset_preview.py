@@ -61,8 +61,8 @@ def test_get_dataset_preview_respects_limit_and_reports_more_rows() -> None:
     assert payload["has_more"] is True
 
 
-def test_get_dataset_preview_rejects_non_csv_file() -> None:
-    """验证当前阶段不支持预览非 CSV 文件。"""
+def test_get_dataset_preview_rejects_invalid_xlsx_file() -> None:
+    """验证非法 xlsx 文件会返回清晰的格式异常提示。"""
     upload_response = client.post(
         "/api/v1/datasets/upload",
         files={
@@ -79,5 +79,5 @@ def test_get_dataset_preview_rejects_non_csv_file() -> None:
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": "当前预览接口暂仅支持 CSV 文件。"
+        "detail": "XLSX 文件格式异常，暂时无法预览。"
     }

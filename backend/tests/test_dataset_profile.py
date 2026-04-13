@@ -68,8 +68,8 @@ def test_get_dataset_profile_returns_column_statistics() -> None:
     ]
 
 
-def test_get_dataset_profile_rejects_non_csv_file() -> None:
-    """验证当前阶段字段分析接口只支持 CSV 文件。"""
+def test_get_dataset_profile_rejects_invalid_xlsx_file() -> None:
+    """验证非法 xlsx 文件会返回清晰的字段分析异常提示。"""
     upload_response = client.post(
         "/api/v1/datasets/upload",
         files={
@@ -86,5 +86,5 @@ def test_get_dataset_profile_rejects_non_csv_file() -> None:
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": "当前字段分析接口暂仅支持 CSV 文件。"
+        "detail": "XLSX 文件格式异常，暂时无法分析字段信息。"
     }
