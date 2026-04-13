@@ -22,10 +22,11 @@ class DatasetPreviewService:
         self,
         record: DatasetRecord,
         data_file_path: Path,
+        offset: int,
         limit: int,
     ) -> DatasetPreviewResponse:
         """按数据集记录返回当前支持格式的预览结果。"""
-        columns, rows, has_more = self._read_preview_data(record, data_file_path, limit)
+        columns, rows, has_more = self._read_preview_data(record, data_file_path, offset, limit)
 
         return DatasetPreviewResponse(
             dataset_id=record.id,
@@ -33,6 +34,7 @@ class DatasetPreviewService:
             columns=columns,
             rows=rows,
             preview_row_count=len(rows),
+            offset=offset,
             limit=limit,
             has_more=has_more,
             preview_format=record.extension.lstrip("."),
@@ -63,13 +65,18 @@ class DatasetPreviewService:
         self,
         record: DatasetRecord,
         data_file_path: Path,
+        offset: int,
         limit: int,
     ) -> tuple[list[str], list[dict[str, str | None]], bool]:
         """按文件格式读取预览数据。"""
         if record.extension == ".csv":
-            return self._read_csv_preview(data_file_path=data_file_path, limit=limit)
+            return self._read_csv_preview(data_file_path=data_file_path, offset=offset, limit=limit)
         if record.extension == ".xlsx":
-            return self._read_xlsx_preview(data_file_path=data_file_path, limit=limit)
+            return self._read_xlsx_preview(
+                data_file_path=data_file_path,
+                offset=offset,
+                limit=limit,
+            )
 
         raise DatasetPreviewError("当前预览接口暂不支持该文件格式。")
 
@@ -89,6 +96,7 @@ class DatasetPreviewService:
     def _read_csv_preview(
         self,
         data_file_path: Path,
+        offset: int,
         limit: int,
     ) -> tuple[list[str], list[dict[str, str | None]], bool]:
         """读取 CSV 预览数据，返回列名、行数据和是否还有更多行。"""
@@ -101,15 +109,21 @@ class DatasetPreviewService:
 
                 rows: list[dict[str, str | None]] = []
                 has_more = False
+                row_index = 0
 
-                # 只读取前 limit 行，避免预览接口一次性把大文件全部拉进内存。
+                # 先跳过 offset 行，再读取当前页 limit 行，避免一次性返回过多数据。
                 for row in reader:
+                    if row_index < offset:
+                        row_index += 1
+                        continue
+
                     if len(rows) >= limit:
                         has_more = True
                         break
 
                     cleaned_row = {column: row.get(column) for column in columns}
                     rows.append(cleaned_row)
+                    row_index += 1
         except CsvError as exc:
             raise DatasetPreviewError("CSV 文件格式异常，暂时无法预览。") from exc
 
@@ -118,6 +132,7 @@ class DatasetPreviewService:
     def _read_xlsx_preview(
         self,
         data_file_path: Path,
+        offset: int,
         limit: int,
     ) -> tuple[list[str], list[dict[str, str | None]], bool]:
         """读取 XLSX 预览数据，返回列名、行数据和是否还有更多行。"""
@@ -137,14 +152,20 @@ class DatasetPreviewService:
 
             rows: list[dict[str, str | None]] = []
             has_more = False
+            row_index = 0
 
-            # 只保留前 limit 行，避免大表格预览一次性读取过多内容。
+            # 先跳过 offset 行，再读取当前页 limit 行，避免一次性返回过多内容。
             for row in row_iterator:
+                if row_index < offset:
+                    row_index += 1
+                    continue
+
                 if len(rows) >= limit:
                     has_more = True
                     break
 
                 rows.append(self._build_row_dict(columns=columns, values=row))
+                row_index += 1
         finally:
             workbook.close()
 

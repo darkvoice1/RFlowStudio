@@ -76,6 +76,7 @@ class DatasetPreviewResponse(BaseModel):
     columns: list[str]
     rows: list[dict[str, str | None]]
     preview_row_count: int
+    offset: int
     limit: int
     has_more: bool
     preview_format: Literal["csv", "xlsx"]

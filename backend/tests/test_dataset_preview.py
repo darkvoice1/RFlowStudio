@@ -33,6 +33,7 @@ def test_get_dataset_preview_returns_csv_columns_and_rows() -> None:
         {"id": "2", "name": "Bob", "score": "88"},
     ]
     assert payload["preview_row_count"] == 2
+    assert payload["offset"] == 0
     assert payload["limit"] == 20
     assert payload["has_more"] is False
     assert payload["preview_format"] == "csv"
@@ -57,8 +58,37 @@ def test_get_dataset_preview_respects_limit_and_reports_more_rows() -> None:
 
     assert response.status_code == 200
     assert payload["preview_row_count"] == 2
+    assert payload["offset"] == 0
     assert payload["limit"] == 2
     assert payload["has_more"] is True
+
+
+def test_get_dataset_preview_supports_offset_pagination() -> None:
+    """验证预览接口支持通过 offset 获取后续分页数据。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n4,91\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview?offset=2&limit=2")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "3", "score": "90"},
+        {"id": "4", "score": "91"},
+    ]
+    assert payload["preview_row_count"] == 2
+    assert payload["offset"] == 2
+    assert payload["limit"] == 2
+    assert payload["has_more"] is False
 
 
 def test_get_dataset_preview_rejects_invalid_xlsx_file() -> None:

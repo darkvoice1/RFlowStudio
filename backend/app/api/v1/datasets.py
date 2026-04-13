@@ -53,6 +53,7 @@ def upload_dataset(file: UploadFile = File(...)) -> DatasetUploadResponse:
 )
 def get_dataset_preview(
     dataset_id: str,
+    offset: int = Query(default=0, ge=0),
     limit: int = Query(
         default=settings.default_preview_rows,
         ge=1,
@@ -61,7 +62,11 @@ def get_dataset_preview(
 ) -> DatasetPreviewResponse:
     """按数据集 ID 返回当前支持格式的预览结果。"""
     try:
-        return dataset_service.get_dataset_preview(dataset_id=dataset_id, limit=limit)
+        return dataset_service.get_dataset_preview(
+            dataset_id=dataset_id,
+            offset=offset,
+            limit=limit,
+        )
     except DatasetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

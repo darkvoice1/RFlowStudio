@@ -40,7 +40,12 @@ class DatasetService:
         """按数据集 ID 返回详情信息。"""
         return self.upload_service.get_dataset_detail(dataset_id)
 
-    def get_dataset_preview(self, dataset_id: str, limit: int) -> DatasetPreviewResponse:
+    def get_dataset_preview(
+        self,
+        dataset_id: str,
+        offset: int,
+        limit: int,
+    ) -> DatasetPreviewResponse:
         """按数据集 ID 返回当前支持格式的预览结果。"""
         record = self.upload_service.load_record(dataset_id)
         data_file_path = self.upload_service.resolve_data_file(
@@ -52,6 +57,7 @@ class DatasetService:
         return self.preview_service.get_dataset_preview(
             record=record,
             data_file_path=data_file_path,
+            offset=offset,
             limit=limit,
         )
 
