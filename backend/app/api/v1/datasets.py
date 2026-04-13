@@ -6,6 +6,7 @@ from app.schemas.dataset import (
     DatasetDetailResponse,
     DatasetListResponse,
     DatasetPreviewResponse,
+    DatasetProfileResponse,
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
@@ -60,6 +61,27 @@ def get_dataset_preview(
     """按数据集 ID 返回当前支持格式的预览结果。"""
     try:
         return dataset_service.get_dataset_preview(dataset_id=dataset_id, limit=limit)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DatasetPreviewError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/profile",
+    response_model=DatasetProfileResponse,
+    summary="Get dataset column profile",
+)
+def get_dataset_profile(dataset_id: str) -> DatasetProfileResponse:
+    """按数据集 ID 返回字段元信息分析结果。"""
+    try:
+        return dataset_service.get_dataset_profile(dataset_id)
     except DatasetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

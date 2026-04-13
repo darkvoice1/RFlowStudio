@@ -79,3 +79,25 @@ class DatasetPreviewResponse(BaseModel):
     limit: int
     has_more: bool
     preview_format: Literal["csv"]
+
+
+class DatasetColumnProfile(BaseModel):
+    """定义单个字段的基础元信息结构。"""
+
+    name: str
+    inferred_type: Literal["integer", "float", "boolean", "string", "empty"]
+    nullable: bool
+    missing_count: int
+    unique_count: int
+    sample_values: list[str]
+
+
+class DatasetProfileResponse(BaseModel):
+    """定义数据集字段元信息接口的响应结构。"""
+
+    dataset_id: str
+    file_name: str
+    row_count: int
+    column_count: int
+    columns: list[DatasetColumnProfile]
+    profile_format: Literal["csv"]
