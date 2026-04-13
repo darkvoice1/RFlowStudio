@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     openapi_url: str = "/openapi.json"
     storage_root: Path = PROJECT_ROOT / "storage"
     upload_root: Path = PROJECT_ROOT / "storage" / "uploads"
+    max_upload_size_mb: int = 100
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
