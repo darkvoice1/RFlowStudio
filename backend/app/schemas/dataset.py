@@ -66,3 +66,16 @@ class DatasetDetailResponse(BaseModel):
     size_bytes: int
     status: Literal["draft", "ready", "failed"]
     created_at: datetime
+
+
+class DatasetPreviewResponse(BaseModel):
+    """定义数据集预览接口的响应结构。"""
+
+    dataset_id: str
+    file_name: str
+    columns: list[str]
+    rows: list[dict[str, str | None]]
+    preview_row_count: int
+    limit: int
+    has_more: bool
+    preview_format: Literal["csv"]

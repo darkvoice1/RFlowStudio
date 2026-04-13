@@ -1,4 +1,6 @@
 import json
+from csv import DictReader
+from csv import Error as CsvError
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -6,10 +8,11 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.core.config import settings
-from app.core.exceptions import DatasetNotFoundError, DatasetUploadError
+from app.core.exceptions import DatasetNotFoundError, DatasetPreviewError, DatasetUploadError
 from app.schemas.dataset import (
     DatasetDetailResponse,
     DatasetListResponse,
+    DatasetPreviewResponse,
     DatasetRecord,
     DatasetSummaryResponse,
     DatasetUploadCapabilitiesResponse,
@@ -105,6 +108,48 @@ class DatasetService:
         """按数据集 ID 返回详情信息。"""
         record = self._load_record(dataset_id)
         return DatasetDetailResponse(**record.model_dump())
+
+    def get_dataset_preview(self, dataset_id: str, limit: int) -> DatasetPreviewResponse:
+        """按数据集 ID 返回 CSV 预览结果。"""
+        record = self._load_record(dataset_id)
+        if record.extension != ".csv":
+            raise DatasetPreviewError("当前预览接口暂仅支持 CSV 文件。")
+
+        data_file_path = settings.storage_root / record.stored_path
+        if not data_file_path.exists():
+            raise DatasetPreviewError("原始数据文件不存在，暂时无法预览。")
+
+        try:
+            with data_file_path.open("r", encoding="utf-8-sig", newline="") as file_obj:
+                reader = DictReader(file_obj)
+                columns = reader.fieldnames or []
+                if not columns:
+                    raise DatasetPreviewError("CSV 文件缺少表头，暂时无法预览。")
+
+                rows: list[dict[str, str | None]] = []
+                has_more = False
+
+                # 只读取前 limit 行，避免预览接口一次性把大文件全部拉进内存。
+                for row in reader:
+                    if len(rows) >= limit:
+                        has_more = True
+                        break
+
+                    cleaned_row = {column: row.get(column) for column in columns}
+                    rows.append(cleaned_row)
+        except CsvError as exc:
+            raise DatasetPreviewError("CSV 文件格式异常，暂时无法预览。") from exc
+
+        return DatasetPreviewResponse(
+            dataset_id=record.id,
+            file_name=record.file_name,
+            columns=columns,
+            rows=rows,
+            preview_row_count=len(rows),
+            limit=limit,
+            has_more=has_more,
+            preview_format="csv",
+        )
 
     def _list_records(self) -> list[DatasetRecord]:
         """读取并按创建时间倒序返回所有数据集记录。"""

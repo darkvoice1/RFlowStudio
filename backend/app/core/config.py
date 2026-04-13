@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     upload_root: Path = PROJECT_ROOT / "storage" / "uploads"
     dataset_metadata_root: Path = PROJECT_ROOT / "storage" / "datasets"
     max_upload_size_mb: int = 100
+    default_preview_rows: int = 20
+    max_preview_rows: int = 100
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

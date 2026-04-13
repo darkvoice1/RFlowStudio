@@ -1,9 +1,11 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
-from app.core.exceptions import DatasetNotFoundError, DatasetUploadError
+from app.core.config import settings
+from app.core.exceptions import DatasetNotFoundError, DatasetPreviewError, DatasetUploadError
 from app.schemas.dataset import (
     DatasetDetailResponse,
     DatasetListResponse,
+    DatasetPreviewResponse,
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
@@ -36,6 +38,34 @@ def upload_dataset(file: UploadFile = File(...)) -> DatasetUploadResponse:
         return dataset_service.save_uploaded_file(file)
     except DatasetUploadError as exc:
         # 业务校验失败时统一转成 400，方便前端给用户展示提示。
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/preview",
+    response_model=DatasetPreviewResponse,
+    summary="Get dataset preview",
+)
+def get_dataset_preview(
+    dataset_id: str,
+    limit: int = Query(
+        default=settings.default_preview_rows,
+        ge=1,
+        le=settings.max_preview_rows,
+    ),
+) -> DatasetPreviewResponse:
+    """按数据集 ID 返回当前支持格式的预览结果。"""
+    try:
+        return dataset_service.get_dataset_preview(dataset_id=dataset_id, limit=limit)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DatasetPreviewError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
