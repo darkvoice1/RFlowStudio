@@ -1,7 +1,8 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from app.core.exceptions import DatasetUploadError
+from app.core.exceptions import DatasetNotFoundError, DatasetUploadError
 from app.schemas.dataset import (
+    DatasetDetailResponse,
     DatasetListResponse,
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
@@ -37,5 +38,18 @@ def upload_dataset(file: UploadFile = File(...)) -> DatasetUploadResponse:
         # 业务校验失败时统一转成 400，方便前端给用户展示提示。
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{dataset_id}", response_model=DatasetDetailResponse, summary="Get dataset detail")
+def get_dataset_detail(dataset_id: str) -> DatasetDetailResponse:
+    """按数据集 ID 返回元信息详情。"""
+    try:
+        return dataset_service.get_dataset_detail(dataset_id)
+    except DatasetNotFoundError as exc:
+        # 数据集不存在时返回 404，便于前端区分参数错误和系统错误。
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc

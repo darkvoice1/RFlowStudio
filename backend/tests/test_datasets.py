@@ -6,7 +6,7 @@ client = TestClient(app)
 
 
 def test_list_datasets_returns_empty_result_in_scaffold_stage() -> None:
-    """验证当前骨架阶段的数据集列表接口可正常访问。"""
+    """验证没有上传记录时列表接口返回空结果。"""
     response = client.get("/api/v1/datasets")
 
     assert response.status_code == 200

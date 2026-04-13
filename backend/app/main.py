@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
     # 启动时确保运行期目录已经存在，后续上传文件可直接落盘。
     settings.storage_root.mkdir(parents=True, exist_ok=True)
     settings.upload_root.mkdir(parents=True, exist_ok=True)
+    settings.dataset_metadata_root.mkdir(parents=True, exist_ok=True)
 
     # 统一挂载 API 路由，避免入口文件堆积接口定义。
     app.include_router(api_router)
