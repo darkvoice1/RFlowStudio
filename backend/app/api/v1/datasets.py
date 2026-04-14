@@ -3,6 +3,9 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from app.core.config import settings
 from app.core.exceptions import DatasetNotFoundError, DatasetPreviewError, DatasetUploadError
 from app.schemas.dataset import (
+    DatasetCleaningStepCreateRequest,
+    DatasetCleaningStepListResponse,
+    DatasetCleaningStepResponse,
     DatasetDetailResponse,
     DatasetListResponse,
     DatasetPreviewResponse,
@@ -126,6 +129,42 @@ def list_dataset_tasks(dataset_id: str) -> TaskListResponse:
     """返回指定数据集关联的异步任务列表。"""
     try:
         return dataset_service.list_dataset_tasks(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/cleaning-steps",
+    response_model=DatasetCleaningStepListResponse,
+    summary="List dataset cleaning steps",
+)
+def list_dataset_cleaning_steps(dataset_id: str) -> DatasetCleaningStepListResponse:
+    """返回指定数据集当前已记录的清洗步骤。"""
+    try:
+        return dataset_service.list_dataset_cleaning_steps(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/cleaning-steps",
+    response_model=DatasetCleaningStepResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create dataset cleaning step",
+)
+def create_dataset_cleaning_step(
+    dataset_id: str,
+    payload: DatasetCleaningStepCreateRequest,
+) -> DatasetCleaningStepResponse:
+    """为指定数据集记录一条新的清洗步骤。"""
+    try:
+        return dataset_service.create_dataset_cleaning_step(dataset_id, payload)
     except DatasetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

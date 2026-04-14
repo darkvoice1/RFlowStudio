@@ -3,6 +3,9 @@ from threading import Thread
 from fastapi import UploadFile
 
 from app.schemas.dataset import (
+    DatasetCleaningStepCreateRequest,
+    DatasetCleaningStepListResponse,
+    DatasetCleaningStepResponse,
     DatasetDetailResponse,
     DatasetListResponse,
     DatasetPreviewResponse,
@@ -11,6 +14,7 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
+from app.services.dataset_cleaning_service import DatasetCleaningService
 from app.services.dataset_preview_service import DatasetPreviewService
 from app.services.dataset_upload_service import DatasetUploadService
 from app.services.task_service import task_service
@@ -23,6 +27,7 @@ class DatasetService:
         """初始化数据集领域服务。"""
         self.upload_service = DatasetUploadService()
         self.preview_service = DatasetPreviewService()
+        self.cleaning_service = DatasetCleaningService(upload_service=self.upload_service)
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -99,6 +104,18 @@ class DatasetService:
         # 先校验数据集存在，避免对非法数据集 ID 返回空任务列表造成误导。
         self.upload_service.load_record(dataset_id)
         return task_service.list_tasks(dataset_id=dataset_id)
+
+    def list_dataset_cleaning_steps(self, dataset_id: str) -> DatasetCleaningStepListResponse:
+        """返回指定数据集当前已记录的清洗步骤列表。"""
+        return self.cleaning_service.list_cleaning_steps(dataset_id)
+
+    def create_dataset_cleaning_step(
+        self,
+        dataset_id: str,
+        payload: DatasetCleaningStepCreateRequest,
+    ) -> DatasetCleaningStepResponse:
+        """为指定数据集记录一条新的清洗步骤。"""
+        return self.cleaning_service.create_cleaning_step(dataset_id, payload)
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""

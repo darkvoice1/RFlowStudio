@@ -1,9 +1,16 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 DatasetStatus = Literal["draft", "processing", "ready", "failed"]
+DatasetCleaningStepType = Literal[
+    "filter",
+    "missing_value",
+    "sort",
+    "derive_variable",
+    "recode",
+]
 
 
 class DatasetRecord(BaseModel):
@@ -104,3 +111,54 @@ class DatasetProfileResponse(BaseModel):
     column_count: int
     columns: list[DatasetColumnProfile]
     profile_format: Literal["csv", "xlsx"]
+
+
+class DatasetCleaningStepCreateRequest(BaseModel):
+    """定义创建数据清洗步骤时的请求结构。"""
+
+    step_type: DatasetCleaningStepType
+    name: str = Field(min_length=1)
+    description: str | None = None
+    enabled: bool = True
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetCleaningStepRecord(BaseModel):
+    """定义单个数据清洗步骤的持久化结构。"""
+
+    id: str
+    step_type: DatasetCleaningStepType
+    name: str
+    description: str | None
+    enabled: bool
+    order: int
+    parameters: dict[str, Any]
+    created_at: datetime
+
+
+class DatasetCleaningFlowRecord(BaseModel):
+    """定义数据集清洗步骤流水的持久化结构。"""
+
+    dataset_id: str
+    steps: list[DatasetCleaningStepRecord]
+
+
+class DatasetCleaningStepResponse(BaseModel):
+    """定义单个数据清洗步骤的响应结构。"""
+
+    id: str
+    step_type: DatasetCleaningStepType
+    name: str
+    description: str | None
+    enabled: bool
+    order: int
+    parameters: dict[str, Any]
+    created_at: datetime
+
+
+class DatasetCleaningStepListResponse(BaseModel):
+    """定义数据清洗步骤列表接口的响应结构。"""
+
+    dataset_id: str
+    items: list[DatasetCleaningStepResponse]
+    total: int

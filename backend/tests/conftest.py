@@ -12,15 +12,18 @@ def isolate_storage(tmp_path: Path) -> None:
     original_storage_root = settings.storage_root
     original_upload_root = settings.upload_root
     original_dataset_metadata_root = settings.dataset_metadata_root
+    original_dataset_cleaning_root = settings.dataset_cleaning_root
 
     settings.storage_root = tmp_path / "storage"
     settings.upload_root = settings.storage_root / "uploads"
     settings.dataset_metadata_root = settings.storage_root / "datasets"
+    settings.dataset_cleaning_root = settings.storage_root / "dataset_cleaning"
 
     # 每个测试开始前都创建独立目录，保证断言结果可预测。
     settings.storage_root.mkdir(parents=True, exist_ok=True)
     settings.upload_root.mkdir(parents=True, exist_ok=True)
     settings.dataset_metadata_root.mkdir(parents=True, exist_ok=True)
+    settings.dataset_cleaning_root.mkdir(parents=True, exist_ok=True)
     task_service.reset()
 
     try:
@@ -29,4 +32,5 @@ def isolate_storage(tmp_path: Path) -> None:
         settings.storage_root = original_storage_root
         settings.upload_root = original_upload_root
         settings.dataset_metadata_root = original_dataset_metadata_root
+        settings.dataset_cleaning_root = original_dataset_cleaning_root
         task_service.reset()
