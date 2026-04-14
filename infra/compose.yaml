@@ -1,0 +1,28 @@
+services:
+  postgres:
+    # 当前 MVP 阶段先只编排 PostgreSQL，供后端元信息存储使用。
+    image: postgres:16
+    container_name: open-r-platform-postgres
+    restart: unless-stopped
+    environment:
+      # 这里与 backend/.env.example 保持一致，避免开发环境连接参数对不上。
+      POSTGRES_DB: rflowstudio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # 后端默认通过本机 5432 端口连接数据库。
+      - "5432:5432"
+    volumes:
+      # 使用命名卷保存数据库数据，容器重建后数据仍可保留。
+      - open_r_platform_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # 用 pg_isready 做基础探活，方便后续接入更多服务时判断数据库是否就绪。
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rflowstudio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  # 单独声明命名卷，便于项目级管理和后续清理。
+  open_r_platform_pgdata:

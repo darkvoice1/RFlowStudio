@@ -1,12 +1,15 @@
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
+from sqlalchemy import desc, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.exceptions import DatasetNotFoundError, DatasetPreviewError, DatasetUploadError
+from app.db.session import session_scope
+from app.models.dataset import DatasetRecordModel
 from app.schemas.dataset import (
     DatasetDetailResponse,
     DatasetListResponse,
@@ -27,16 +30,21 @@ class DatasetUploadService:
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
+        with session_scope() as session:
+            records = session.scalars(
+                select(DatasetRecordModel).order_by(desc(DatasetRecordModel.created_at))
+            ).all()
+
         items = [
             DatasetSummaryResponse(
                 id=record.id,
                 name=record.name,
                 file_name=record.file_name,
-                status=record.status,
+                status=record.status,  # type: ignore[arg-type]
                 size_bytes=record.size_bytes,
                 created_at=record.created_at,
             )
-            for record in self._list_records()
+            for record in records
         ]
         return DatasetListResponse(items=items, total=len(items))
 
@@ -90,7 +98,12 @@ class DatasetUploadService:
             status="draft",
             created_at=created_at,
         )
-        self._save_record(record)
+        try:
+            self._save_record(record)
+        except SQLAlchemyError as exc:
+            # 如果数据库写入失败，需要回收刚刚落盘的原始文件，避免留下孤儿文件。
+            stored_path.unlink(missing_ok=True)
+            raise DatasetUploadError("数据集元信息写入数据库失败。") from exc
 
         return DatasetUploadResponse(
             id=record.id,
@@ -116,11 +129,12 @@ class DatasetUploadService:
 
     def load_record(self, dataset_id: str) -> DatasetRecord:
         """读取单个数据集元信息记录。"""
-        record_path = self._build_record_path(dataset_id)
-        if not record_path.exists():
-            raise DatasetNotFoundError("请求的数据集不存在。")
+        with session_scope() as session:
+            model = session.get(DatasetRecordModel, dataset_id)
+            if model is None:
+                raise DatasetNotFoundError("请求的数据集不存在。")
 
-        return self._read_record(record_path)
+        return self._to_record(model)
 
     def resolve_data_file(
         self,
@@ -139,28 +153,45 @@ class DatasetUploadService:
 
         return data_file_path
 
-    def _list_records(self) -> list[DatasetRecord]:
-        """读取并按创建时间倒序返回所有数据集记录。"""
-        records = [
-            self._read_record(record_path)
-            for record_path in settings.dataset_metadata_root.glob("*.json")
-        ]
-
-        # 列表接口优先展示最新上传的数据集，符合用户直觉。
-        return sorted(records, key=lambda item: item.created_at, reverse=True)
-
     def _save_record(self, record: DatasetRecord) -> None:
-        """把数据集元信息写入本地 JSON 文件。"""
-        record_path = self._build_record_path(record.id)
-        record_path.write_text(
-            json.dumps(record.model_dump(mode="json"), ensure_ascii=False, indent=2),
-            encoding="utf-8",
+        """把数据集元信息写入数据库。"""
+        with session_scope() as session:
+            existing_model = session.get(DatasetRecordModel, record.id)
+            if existing_model is None:
+                session.add(self._to_model(record))
+                return
+
+            # 复用同一条记录做状态更新，避免多份元信息出现分叉。
+            existing_model.name = record.name
+            existing_model.file_name = record.file_name
+            existing_model.extension = record.extension
+            existing_model.stored_path = record.stored_path
+            existing_model.size_bytes = record.size_bytes
+            existing_model.status = record.status
+            existing_model.created_at = record.created_at
+
+    def _to_record(self, model: DatasetRecordModel) -> DatasetRecord:
+        """把数据库模型转换为领域内统一的数据集记录。"""
+        return DatasetRecord(
+            id=model.id,
+            name=model.name,
+            file_name=model.file_name,
+            extension=model.extension,
+            stored_path=model.stored_path,
+            size_bytes=model.size_bytes,
+            status=model.status,  # type: ignore[arg-type]
+            created_at=model.created_at,
         )
 
-    def _read_record(self, record_path: Path) -> DatasetRecord:
-        """从本地 JSON 文件读取数据集元信息。"""
-        return DatasetRecord.model_validate_json(record_path.read_text(encoding="utf-8"))
-
-    def _build_record_path(self, dataset_id: str) -> Path:
-        """构造数据集元信息文件路径。"""
-        return settings.dataset_metadata_root / f"{dataset_id}.json"
+    def _to_model(self, record: DatasetRecord) -> DatasetRecordModel:
+        """把领域记录转换为数据库模型对象。"""
+        return DatasetRecordModel(
+            id=record.id,
+            name=record.name,
+            file_name=record.file_name,
+            extension=record.extension,
+            stored_path=record.stored_path,
+            size_bytes=record.size_bytes,
+            status=record.status,
+            created_at=record.created_at,
+        )

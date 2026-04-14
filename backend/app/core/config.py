@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """根据当前配置拼装 PostgreSQL 连接地址。"""
+        if self.database_driver.startswith("sqlite"):
+            database_name = str(self.database_name)
+            return f"{self.database_driver}:///{database_name}"
+
         # 用户名和密码可能包含特殊字符，这里先做 URL 转义，避免连接串解析出错。
         encoded_user = quote_plus(self.database_user)
         encoded_password = quote_plus(self.database_password)

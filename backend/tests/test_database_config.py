@@ -1,4 +1,4 @@
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.db.session import get_database_url
 
 
@@ -31,6 +31,18 @@ def test_settings_build_database_url_escapes_special_characters(monkeypatch) -> 
     )
 
 
+def test_settings_build_sqlite_database_url(monkeypatch, tmp_path) -> None:
+    """验证 SQLite 驱动会按文件库格式拼装连接串。"""
+    monkeypatch.setenv("DATABASE_DRIVER", "sqlite+pysqlite")
+    monkeypatch.setenv("DATABASE_NAME", (tmp_path / "test.db").as_posix())
+
+    test_settings = Settings(_env_file=None)
+
+    assert test_settings.database_url == (
+        f"sqlite+pysqlite:///{(tmp_path / 'test.db').as_posix()}"
+    )
+
+
 def test_get_database_url_returns_global_settings_value() -> None:
     """验证数据库连接模块会复用全局配置对象。"""
-    assert get_database_url() == Settings().database_url
+    assert get_database_url() == settings.database_url
