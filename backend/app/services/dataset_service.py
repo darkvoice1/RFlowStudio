@@ -14,7 +14,7 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
-from app.services.dataset_cleaning_service import DatasetCleaningService
+from app.services.dataset_cleaning_manage_service import DatasetCleaningManageService
 from app.services.dataset_preview_service import DatasetPreviewService
 from app.services.dataset_upload_service import DatasetUploadService
 from app.services.task_service import task_service
@@ -27,7 +27,9 @@ class DatasetService:
         """初始化数据集领域服务。"""
         self.upload_service = DatasetUploadService()
         self.preview_service = DatasetPreviewService()
-        self.cleaning_service = DatasetCleaningService(upload_service=self.upload_service)
+        self.cleaning_manage_service = DatasetCleaningManageService(
+            upload_service=self.upload_service
+        )
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -53,6 +55,7 @@ class DatasetService:
     ) -> DatasetPreviewResponse:
         """按数据集 ID 返回当前支持格式的预览结果。"""
         record = self.upload_service.load_record(dataset_id)
+        cleaning_steps = self.cleaning_manage_service.list_enabled_steps(dataset_id)
         data_file_path = self.upload_service.resolve_data_file(
             record=record,
             supported_extensions={".csv", ".xlsx"},
@@ -64,11 +67,13 @@ class DatasetService:
             data_file_path=data_file_path,
             offset=offset,
             limit=limit,
+            cleaning_steps=cleaning_steps,
         )
 
     def get_dataset_profile(self, dataset_id: str) -> DatasetProfileResponse:
         """按数据集 ID 返回当前支持格式的字段元信息统计结果。"""
         record = self.upload_service.load_record(dataset_id)
+        cleaning_steps = self.cleaning_manage_service.list_enabled_steps(dataset_id)
         data_file_path = self.upload_service.resolve_data_file(
             record=record,
             supported_extensions={".csv", ".xlsx"},
@@ -78,6 +83,7 @@ class DatasetService:
         return self.preview_service.get_dataset_profile(
             record=record,
             data_file_path=data_file_path,
+            cleaning_steps=cleaning_steps,
         )
 
     def create_dataset_profile_task(self, dataset_id: str) -> TaskResponse:
@@ -107,7 +113,7 @@ class DatasetService:
 
     def list_dataset_cleaning_steps(self, dataset_id: str) -> DatasetCleaningStepListResponse:
         """返回指定数据集当前已记录的清洗步骤列表。"""
-        return self.cleaning_service.list_cleaning_steps(dataset_id)
+        return self.cleaning_manage_service.list_cleaning_steps(dataset_id)
 
     def create_dataset_cleaning_step(
         self,
@@ -115,7 +121,7 @@ class DatasetService:
         payload: DatasetCleaningStepCreateRequest,
     ) -> DatasetCleaningStepResponse:
         """为指定数据集记录一条新的清洗步骤。"""
-        return self.cleaning_service.create_cleaning_step(dataset_id, payload)
+        return self.cleaning_manage_service.create_cleaning_step(dataset_id, payload)
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""

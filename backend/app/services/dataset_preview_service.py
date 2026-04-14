@@ -1,22 +1,24 @@
-from csv import DictReader
-from csv import Error as CsvError
 from pathlib import Path
 from typing import Any
-from zipfile import BadZipFile
 
-from openpyxl import load_workbook
-
-from app.core.exceptions import DatasetPreviewError
 from app.schemas.dataset import (
+    DatasetCleaningStepRecord,
     DatasetColumnProfile,
     DatasetPreviewResponse,
     DatasetProfileResponse,
     DatasetRecord,
 )
+from app.services.dataset_cleaning_execute_service import DatasetCleaningExecuteService
+from app.services.dataset_reader_service import DatasetReaderService
 
 
 class DatasetPreviewService:
     """封装数据集预览与字段分析逻辑。"""
+
+    def __init__(self) -> None:
+        """初始化预览服务依赖的读取器和清洗执行器。"""
+        self.reader_service = DatasetReaderService()
+        self.cleaning_execute_service = DatasetCleaningExecuteService()
 
     def get_dataset_preview(
         self,
@@ -24,16 +26,31 @@ class DatasetPreviewService:
         data_file_path: Path,
         offset: int,
         limit: int,
+        cleaning_steps: list[DatasetCleaningStepRecord] | None = None,
     ) -> DatasetPreviewResponse:
         """按数据集记录返回当前支持格式的预览结果。"""
-        columns, rows, has_more = self._read_preview_data(record, data_file_path, offset, limit)
+        columns, rows = self.reader_service.read_all_rows(
+            record=record,
+            data_file_path=data_file_path,
+            empty_message="当前预览接口暂不支持该文件格式。",
+            csv_header_message="CSV 文件缺少表头，暂时无法预览。",
+            xlsx_header_message="XLSX 文件缺少表头，暂时无法预览。",
+            xlsx_invalid_message="XLSX 文件格式异常，暂时无法预览。",
+        )
+        filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
+            columns=columns,
+            rows=rows,
+            cleaning_steps=cleaning_steps or [],
+        )
+        paged_rows = filtered_rows[offset : offset + limit]
+        has_more = offset + limit < len(filtered_rows)
 
         return DatasetPreviewResponse(
             dataset_id=record.id,
             file_name=record.file_name,
             columns=columns,
-            rows=rows,
-            preview_row_count=len(rows),
+            rows=paged_rows,
+            preview_row_count=len(paged_rows),
             offset=offset,
             limit=limit,
             has_more=has_more,
@@ -44,9 +61,23 @@ class DatasetPreviewService:
         self,
         record: DatasetRecord,
         data_file_path: Path,
+        cleaning_steps: list[DatasetCleaningStepRecord] | None = None,
     ) -> DatasetProfileResponse:
         """按数据集记录返回当前支持格式的字段元信息统计结果。"""
-        columns, column_values, row_count = self._read_profile_data(record, data_file_path)
+        columns, rows = self.reader_service.read_all_rows(
+            record=record,
+            data_file_path=data_file_path,
+            empty_message="当前字段分析接口暂不支持该文件格式。",
+            csv_header_message="CSV 文件缺少表头，暂时无法分析字段信息。",
+            xlsx_header_message="XLSX 文件缺少表头，暂时无法分析字段信息。",
+            xlsx_invalid_message="XLSX 文件格式异常，暂时无法分析字段信息。",
+        )
+        filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
+            columns=columns,
+            rows=rows,
+            cleaning_steps=cleaning_steps or [],
+        )
+        column_values, row_count = self._build_profile_inputs(columns, filtered_rows)
         profiles = [
             self._build_column_profile(name=column, values=column_values[column])
             for column in columns
@@ -61,211 +92,18 @@ class DatasetPreviewService:
             profile_format=record.extension.lstrip("."),
         )
 
-    def _read_preview_data(
-        self,
-        record: DatasetRecord,
-        data_file_path: Path,
-        offset: int,
-        limit: int,
-    ) -> tuple[list[str], list[dict[str, str | None]], bool]:
-        """按文件格式读取预览数据。"""
-        if record.extension == ".csv":
-            return self._read_csv_preview(data_file_path=data_file_path, offset=offset, limit=limit)
-        if record.extension == ".xlsx":
-            return self._read_xlsx_preview(
-                data_file_path=data_file_path,
-                offset=offset,
-                limit=limit,
-            )
-
-        raise DatasetPreviewError("当前预览接口暂不支持该文件格式。")
-
-    def _read_profile_data(
-        self,
-        record: DatasetRecord,
-        data_file_path: Path,
-    ) -> tuple[list[str], dict[str, list[str | None]], int]:
-        """按文件格式读取字段分析所需的列值。"""
-        if record.extension == ".csv":
-            return self._read_csv_profile(data_file_path=data_file_path)
-        if record.extension == ".xlsx":
-            return self._read_xlsx_profile(data_file_path=data_file_path)
-
-        raise DatasetPreviewError("当前字段分析接口暂不支持该文件格式。")
-
-    def _read_csv_preview(
-        self,
-        data_file_path: Path,
-        offset: int,
-        limit: int,
-    ) -> tuple[list[str], list[dict[str, str | None]], bool]:
-        """读取 CSV 预览数据，返回列名、行数据和是否还有更多行。"""
-        try:
-            with data_file_path.open("r", encoding="utf-8-sig", newline="") as file_obj:
-                reader = DictReader(file_obj)
-                columns = reader.fieldnames or []
-                if not columns:
-                    raise DatasetPreviewError("CSV 文件缺少表头，暂时无法预览。")
-
-                rows: list[dict[str, str | None]] = []
-                has_more = False
-                row_index = 0
-
-                # 先跳过 offset 行，再读取当前页 limit 行，避免一次性返回过多数据。
-                for row in reader:
-                    if row_index < offset:
-                        row_index += 1
-                        continue
-
-                    if len(rows) >= limit:
-                        has_more = True
-                        break
-
-                    cleaned_row = {column: row.get(column) for column in columns}
-                    rows.append(cleaned_row)
-                    row_index += 1
-        except CsvError as exc:
-            raise DatasetPreviewError("CSV 文件格式异常，暂时无法预览。") from exc
-
-        return columns, rows, has_more
-
-    def _read_xlsx_preview(
-        self,
-        data_file_path: Path,
-        offset: int,
-        limit: int,
-    ) -> tuple[list[str], list[dict[str, str | None]], bool]:
-        """读取 XLSX 预览数据，返回列名、行数据和是否还有更多行。"""
-        try:
-            workbook = load_workbook(filename=data_file_path, read_only=True, data_only=True)
-        except BadZipFile as exc:
-            raise DatasetPreviewError("XLSX 文件格式异常，暂时无法预览。") from exc
-
-        try:
-            worksheet = workbook.active
-            row_iterator = worksheet.iter_rows(values_only=True)
-            header_row = next(row_iterator, None)
-            columns = self._extract_header_columns(
-                header_row=header_row,
-                empty_message="XLSX 文件缺少表头，暂时无法预览。",
-            )
-
-            rows: list[dict[str, str | None]] = []
-            has_more = False
-            row_index = 0
-
-            # 先跳过 offset 行，再读取当前页 limit 行，避免一次性返回过多内容。
-            for row in row_iterator:
-                if row_index < offset:
-                    row_index += 1
-                    continue
-
-                if len(rows) >= limit:
-                    has_more = True
-                    break
-
-                rows.append(self._build_row_dict(columns=columns, values=row))
-                row_index += 1
-        finally:
-            workbook.close()
-
-        return columns, rows, has_more
-
-    def _read_csv_profile(
-        self,
-        data_file_path: Path,
-    ) -> tuple[list[str], dict[str, list[str | None]], int]:
-        """读取 CSV 全量列值，用于字段元信息分析。"""
-        try:
-            with data_file_path.open("r", encoding="utf-8-sig", newline="") as file_obj:
-                reader = DictReader(file_obj)
-                columns = reader.fieldnames or []
-                if not columns:
-                    raise DatasetPreviewError("CSV 文件缺少表头，暂时无法分析字段信息。")
-
-                column_values: dict[str, list[str | None]] = {column: [] for column in columns}
-                row_count = 0
-
-                # 逐行累积列值，为字段类型和缺失值统计提供输入。
-                for row in reader:
-                    row_count += 1
-                    for column in columns:
-                        column_values[column].append(self._normalize_cell_value(row.get(column)))
-        except CsvError as exc:
-            raise DatasetPreviewError("CSV 文件格式异常，暂时无法分析字段信息。") from exc
-
-        return columns, column_values, row_count
-
-    def _read_xlsx_profile(
-        self,
-        data_file_path: Path,
-    ) -> tuple[list[str], dict[str, list[str | None]], int]:
-        """读取 XLSX 全量列值，用于字段元信息分析。"""
-        try:
-            workbook = load_workbook(filename=data_file_path, read_only=True, data_only=True)
-        except BadZipFile as exc:
-            raise DatasetPreviewError("XLSX 文件格式异常，暂时无法分析字段信息。") from exc
-
-        try:
-            worksheet = workbook.active
-            row_iterator = worksheet.iter_rows(values_only=True)
-            header_row = next(row_iterator, None)
-            columns = self._extract_header_columns(
-                header_row=header_row,
-                empty_message="XLSX 文件缺少表头，暂时无法分析字段信息。",
-            )
-
-            column_values: dict[str, list[str | None]] = {column: [] for column in columns}
-            row_count = 0
-
-            # 逐行累积列值，为字段类型和缺失值统计提供输入。
-            for row in row_iterator:
-                row_count += 1
-                row_dict = self._build_row_dict(columns=columns, values=row)
-                for column in columns:
-                    column_values[column].append(row_dict[column])
-        finally:
-            workbook.close()
-
-        return columns, column_values, row_count
-
-    def _extract_header_columns(
-        self,
-        header_row: tuple[Any, ...] | None,
-        empty_message: str,
-    ) -> list[str]:
-        """从表头行中提取列名列表。"""
-        if header_row is None:
-            raise DatasetPreviewError(empty_message)
-
-        columns = [self._stringify_header_cell(value) for value in header_row]
-        if not any(columns):
-            raise DatasetPreviewError(empty_message)
-
-        return columns
-
-    def _stringify_header_cell(self, value: Any) -> str:
-        """把表头单元格转换成可展示的列名文本。"""
-        if value is None:
-            return ""
-
-        return str(value).strip()
-
-    def _build_row_dict(
+    def _build_profile_inputs(
         self,
         columns: list[str],
-        values: tuple[Any, ...] | None,
-    ) -> dict[str, str | None]:
-        """根据列名和行值构造统一的行字典。"""
-        if values is None:
-            values = tuple()
+        rows: list[dict[str, str | None]],
+    ) -> tuple[dict[str, list[str | None]], int]:
+        """根据行数据构造字段分析需要的列值结构。"""
+        column_values: dict[str, list[str | None]] = {column: [] for column in columns}
+        for row in rows:
+            for column in columns:
+                column_values[column].append(row.get(column))
 
-        row_dict: dict[str, str | None] = {}
-        for index, column in enumerate(columns):
-            cell_value = values[index] if index < len(values) else None
-            row_dict[column] = self._normalize_cell_value(cell_value)
-
-        return row_dict
+        return column_values, len(rows)
 
     def _build_column_profile(
         self,

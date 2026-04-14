@@ -127,3 +127,36 @@ def test_create_dataset_cleaning_step_returns_404_for_unknown_dataset() -> None:
     assert response.json() == {
         "detail": "请求的数据集不存在。"
     }
+
+
+def test_create_filter_cleaning_step_rejects_invalid_operator() -> None:
+    """验证筛选步骤的非法操作符会被明确拒绝。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "filter",
+            "name": "非法筛选",
+            "parameters": {
+                "column": "score",
+                "operator": "unknown",
+                "value": "90",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "筛选步骤的操作符不受支持。"
+    }

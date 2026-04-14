@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import settings
+from app.core.exceptions import DatasetCleaningError
 from app.schemas.dataset import (
     DatasetCleaningFlowRecord,
     DatasetCleaningStepCreateRequest,
@@ -14,8 +15,8 @@ from app.schemas.dataset import (
 from app.services.dataset_upload_service import DatasetUploadService
 
 
-class DatasetCleaningService:
-    """管理数据清洗步骤的记录和读取。"""
+class DatasetCleaningManageService:
+    """管理数据清洗步骤的记录、校验和读取。"""
 
     def __init__(self, upload_service: DatasetUploadService) -> None:
         """初始化数据清洗步骤服务。"""
@@ -42,6 +43,7 @@ class DatasetCleaningService:
         self.upload_service.load_record(dataset_id)
         flow_record = self._load_flow_record(dataset_id)
         next_order = len(flow_record.steps) + 1
+        validated_parameters = self._validate_step_parameters(payload)
 
         # 先把步骤按顺序落盘，后续真正执行筛选或清洗时可以直接复用。
         step_record = DatasetCleaningStepRecord(
@@ -51,13 +53,23 @@ class DatasetCleaningService:
             description=payload.description,
             enabled=payload.enabled,
             order=next_order,
-            parameters=dict(payload.parameters),
+            parameters=validated_parameters,
             created_at=datetime.now(UTC),
         )
         flow_record.steps.append(step_record)
         self._save_flow_record(flow_record)
 
         return DatasetCleaningStepResponse(**step_record.model_dump())
+
+    def list_enabled_steps(self, dataset_id: str) -> list[DatasetCleaningStepRecord]:
+        """返回指定数据集当前已启用的清洗步骤记录。"""
+        self.upload_service.load_record(dataset_id)
+        flow_record = self._load_flow_record(dataset_id)
+        return [
+            step
+            for step in sorted(flow_record.steps, key=lambda item: item.order)
+            if step.enabled
+        ]
 
     def _load_flow_record(self, dataset_id: str) -> DatasetCleaningFlowRecord:
         """读取数据集清洗步骤流水，不存在时返回空流水。"""
@@ -80,3 +92,42 @@ class DatasetCleaningService:
     def _build_flow_record_path(self, dataset_id: str) -> Path:
         """构造数据清洗步骤流水文件路径。"""
         return settings.dataset_cleaning_root / f"{dataset_id}.json"
+
+    def _validate_step_parameters(
+        self,
+        payload: DatasetCleaningStepCreateRequest,
+    ) -> dict[str, object]:
+        """校验不同清洗步骤的参数结构。"""
+        if payload.step_type != "filter":
+            return dict(payload.parameters)
+
+        parameters = dict(payload.parameters)
+        operator = parameters.get("operator")
+        column = parameters.get("column")
+        supported_operators = {
+            "eq",
+            "neq",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "between",
+            "contains",
+            "is_empty",
+            "is_not_empty",
+        }
+
+        if not isinstance(column, str) or not column.strip():
+            raise DatasetCleaningError("筛选步骤缺少有效的字段名。")
+        if operator not in supported_operators:
+            raise DatasetCleaningError("筛选步骤的操作符不受支持。")
+
+        # 根据操作符类型校验参数，先保证当前第一版筛选能力的输入稳定。
+        if operator in {"eq", "neq", "gt", "gte", "lt", "lte", "contains"}:
+            if "value" not in parameters:
+                raise DatasetCleaningError("当前筛选步骤缺少 value 参数。")
+        if operator == "between":
+            if "start" not in parameters or "end" not in parameters:
+                raise DatasetCleaningError("区间筛选必须同时提供 start 和 end 参数。")
+
+        return parameters

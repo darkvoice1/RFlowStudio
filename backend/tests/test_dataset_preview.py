@@ -111,3 +111,42 @@ def test_get_dataset_preview_rejects_invalid_xlsx_file() -> None:
     assert response.json() == {
         "detail": "XLSX 文件格式异常，暂时无法预览。"
     }
+
+
+def test_get_dataset_preview_applies_enabled_filter_steps() -> None:
+    """验证已记录的筛选步骤会真实作用到数据预览结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,name,score\n1,Alice,95\n2,Bob,88\n3,Carol,91\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "filter",
+            "name": "筛选高分样本",
+            "parameters": {
+                "column": "score",
+                "operator": "gte",
+                "value": "90",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "1", "name": "Alice", "score": "95"},
+        {"id": "3", "name": "Carol", "score": "91"},
+    ]
+    assert payload["preview_row_count"] == 2
+    assert payload["has_more"] is False
