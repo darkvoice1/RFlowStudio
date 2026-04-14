@@ -10,7 +10,7 @@ from app.schemas.dataset import (
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
-from app.schemas.task import TaskResponse
+from app.schemas.task import TaskListResponse, TaskResponse
 from app.services.dataset_preview_service import DatasetPreviewService
 from app.services.dataset_upload_service import DatasetUploadService
 from app.services.task_service import task_service
@@ -77,7 +77,9 @@ class DatasetService:
 
     def create_dataset_profile_task(self, dataset_id: str) -> TaskResponse:
         """创建字段分析异步任务并在后台执行。"""
+        self.upload_service.load_record(dataset_id)
         task = task_service.create_task(task_type="dataset_profile", dataset_id=dataset_id)
+        self.upload_service.update_dataset_status(dataset_id, "processing")
 
         # 用后台线程执行字段分析，先把同步耗时逻辑从主请求里挪出去。
         worker = Thread(
@@ -92,15 +94,27 @@ class DatasetService:
         """返回指定异步任务的当前状态。"""
         return task_service.get_task(task_id)
 
+    def list_dataset_tasks(self, dataset_id: str) -> TaskListResponse:
+        """返回指定数据集关联的异步任务列表。"""
+        # 先校验数据集存在，避免对非法数据集 ID 返回空任务列表造成误导。
+        self.upload_service.load_record(dataset_id)
+        return task_service.list_tasks(dataset_id=dataset_id)
+
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""
         try:
             task_service.mark_running(task_id)
             profile = self.get_dataset_profile(dataset_id)
             task_service.mark_completed(task_id, profile.model_dump(mode="json"))
+            self.upload_service.update_dataset_status(dataset_id, "ready")
         except Exception as exc:
             # 当前阶段先把错误收敛成任务失败信息，避免线程异常直接丢失。
             task_service.mark_failed(task_id, str(exc))
+            try:
+                self.upload_service.update_dataset_status(dataset_id, "failed")
+            except Exception:
+                # 如果数据集本身已不可读，任务失败状态仍然需要保留下来。
+                pass
 
 
 # 提供默认服务实例，后续接入依赖注入时可以平滑替换。

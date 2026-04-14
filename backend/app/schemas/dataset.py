@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+DatasetStatus = Literal["draft", "processing", "ready", "failed"]
+
 
 class DatasetRecord(BaseModel):
     """定义数据集元信息的持久化结构。"""
@@ -13,7 +15,7 @@ class DatasetRecord(BaseModel):
     extension: str
     stored_path: str
     size_bytes: int
-    status: Literal["draft", "ready", "failed"]
+    status: DatasetStatus
     created_at: datetime
 
 
@@ -23,7 +25,7 @@ class DatasetSummaryResponse(BaseModel):
     id: str
     name: str
     file_name: str
-    status: Literal["draft", "ready", "failed"]
+    status: DatasetStatus
     size_bytes: int
     created_at: datetime
 
@@ -51,7 +53,7 @@ class DatasetUploadResponse(BaseModel):
     file_name: str
     stored_path: str
     size_bytes: int
-    status: Literal["draft"]
+    status: DatasetStatus
     created_at: datetime
 
 
@@ -64,7 +66,7 @@ class DatasetDetailResponse(BaseModel):
     extension: str
     stored_path: str
     size_bytes: int
-    status: Literal["draft", "ready", "failed"]
+    status: DatasetStatus
     created_at: datetime
 
 

@@ -10,7 +10,7 @@ from app.schemas.dataset import (
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
-from app.schemas.task import TaskResponse
+from app.schemas.task import TaskListResponse, TaskResponse
 from app.services.dataset_service import dataset_service
 
 router = APIRouter(prefix="/datasets")
@@ -110,6 +110,22 @@ def create_dataset_profile_job(dataset_id: str) -> TaskResponse:
     """创建字段分析异步任务，返回任务状态入口。"""
     try:
         return dataset_service.create_dataset_profile_task(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/tasks",
+    response_model=TaskListResponse,
+    summary="List dataset tasks",
+)
+def list_dataset_tasks(dataset_id: str) -> TaskListResponse:
+    """返回指定数据集关联的异步任务列表。"""
+    try:
+        return dataset_service.list_dataset_tasks(dataset_id)
     except DatasetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

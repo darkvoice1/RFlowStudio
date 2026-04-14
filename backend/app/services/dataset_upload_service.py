@@ -11,6 +11,7 @@ from app.schemas.dataset import (
     DatasetDetailResponse,
     DatasetListResponse,
     DatasetRecord,
+    DatasetStatus,
     DatasetSummaryResponse,
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
@@ -105,6 +106,13 @@ class DatasetUploadService:
         """按数据集 ID 返回详情信息。"""
         record = self.load_record(dataset_id)
         return DatasetDetailResponse(**record.model_dump())
+
+    def update_dataset_status(self, dataset_id: str, status: DatasetStatus) -> DatasetRecord:
+        """更新数据集状态并返回最新记录。"""
+        record = self.load_record(dataset_id)
+        record.status = status
+        self._save_record(record)
+        return record
 
     def load_record(self, dataset_id: str) -> DatasetRecord:
         """读取单个数据集元信息记录。"""

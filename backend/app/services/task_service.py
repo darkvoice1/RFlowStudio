@@ -3,7 +3,7 @@ from threading import Lock
 from uuid import uuid4
 
 from app.core.exceptions import TaskNotFoundError
-from app.schemas.task import TaskResponse
+from app.schemas.task import TaskListResponse, TaskResponse
 
 
 class TaskService:
@@ -12,6 +12,8 @@ class TaskService:
     def __init__(self) -> None:
         """初始化任务服务。"""
         self._tasks: dict[str, TaskResponse] = {}
+        self._task_order: dict[str, int] = {}
+        self._next_order = 0
         self._lock = Lock()
 
     def create_task(self, task_type: str, dataset_id: str | None = None) -> TaskResponse:
@@ -29,7 +31,9 @@ class TaskService:
         )
 
         with self._lock:
+            self._next_order += 1
             self._tasks[task.id] = task
+            self._task_order[task.id] = self._next_order
 
         return task
 
@@ -71,10 +75,27 @@ class TaskService:
             task = self._get_task_or_raise(task_id)
             return task.model_copy(deep=True)
 
+    def list_tasks(self, dataset_id: str | None = None) -> TaskListResponse:
+        """返回全部任务或指定数据集的任务列表。"""
+        with self._lock:
+            tasks = [task.model_copy(deep=True) for task in self._tasks.values()]
+
+        if dataset_id is not None:
+            tasks = [task for task in tasks if task.dataset_id == dataset_id]
+
+        # 用创建时间加创建序号做双重排序，避免同一时刻创建任务时顺序不稳定。
+        tasks.sort(
+            key=lambda task: (task.created_at, self._task_order.get(task.id, 0)),
+            reverse=True,
+        )
+        return TaskListResponse(items=tasks, total=len(tasks))
+
     def reset(self) -> None:
         """清空内存中的任务记录，供测试隔离使用。"""
         with self._lock:
             self._tasks.clear()
+            self._task_order.clear()
+            self._next_order = 0
 
     def _get_task_or_raise(self, task_id: str) -> TaskResponse:
         """返回指定任务，不存在时抛出异常。"""

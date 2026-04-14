@@ -16,3 +16,10 @@ class TaskResponse(BaseModel):
     finished_at: datetime | None
     error_message: str | None
     result: dict[str, Any] | None
+
+
+class TaskListResponse(BaseModel):
+    """定义异步任务列表接口的响应结构。"""
+
+    items: list[TaskResponse]
+    total: int
