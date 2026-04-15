@@ -401,3 +401,73 @@ def test_create_recode_cleaning_step_rejects_empty_mapping() -> None:
     assert response.json() == {
         "detail": "重编码步骤必须提供非空的 mapping 映射。"
     }
+
+
+def test_create_derive_variable_cleaning_step_records_concat_parameters() -> None:
+    """验证新变量生成步骤会保存整理后的拼接参数。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"first_name,last_name\nA,Li\nB,Wang\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "derive_variable",
+            "name": "生成全名",
+            "parameters": {
+                "method": "concat",
+                "new_column": " full_name ",
+                "source_columns": [" first_name ", "last_name"],
+                "separator": "-",
+            },
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 201
+    assert payload["parameters"] == {
+        "method": "concat",
+        "new_column": "full_name",
+        "source_columns": ["first_name", "last_name"],
+        "separator": "-",
+    }
+
+
+def test_create_derive_variable_cleaning_step_rejects_invalid_method() -> None:
+    """验证新变量生成步骤会拒绝不支持的 method。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"score,bonus\n95,5\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "derive_variable",
+            "name": "非法新变量",
+            "parameters": {
+                "method": "unknown",
+                "new_column": "total",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "新变量生成步骤的 method 不受支持。"
+    }

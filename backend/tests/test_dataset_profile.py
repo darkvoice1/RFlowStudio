@@ -324,3 +324,66 @@ def test_get_dataset_profile_applies_recode_step() -> None:
             "sample_values": ["男", "女"],
         },
     ]
+
+
+def test_get_dataset_profile_applies_derive_variable_concat_step() -> None:
+    """验证字段拼接生成的新变量会同步进入字段分析结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "people.csv",
+                BytesIO(
+                    b"first_name,last_name\nLei,Wang\nMing,Li\n,\xe9\x99\x88\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "derive_variable",
+            "name": "生成全名",
+            "parameters": {
+                "method": "concat",
+                "new_column": "full_name",
+                "source_columns": ["first_name", "last_name"],
+                "separator": "",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/profile")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["row_count"] == 3
+    assert payload["columns"] == [
+        {
+            "name": "first_name",
+            "inferred_type": "string",
+            "nullable": True,
+            "missing_count": 1,
+            "unique_count": 2,
+            "sample_values": ["Lei", "Ming"],
+        },
+        {
+            "name": "last_name",
+            "inferred_type": "string",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["Wang", "Li", "陈"],
+        },
+        {
+            "name": "full_name",
+            "inferred_type": "string",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["LeiWang", "MingLi", "陈"],
+        },
+    ]

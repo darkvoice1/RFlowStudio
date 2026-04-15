@@ -107,6 +107,8 @@ class DatasetCleaningManageService:
             return self._validate_sort_parameters(parameters)
         if payload.step_type == "recode":
             return self._validate_recode_parameters(parameters)
+        if payload.step_type == "derive_variable":
+            return self._validate_derive_variable_parameters(parameters)
 
         return parameters
 
@@ -231,4 +233,52 @@ class DatasetCleaningManageService:
             normalized_mapping[normalized_source] = normalized_target
 
         parameters["mapping"] = normalized_mapping
+        return parameters
+
+    def _validate_derive_variable_parameters(
+        self,
+        parameters: dict[str, object],
+    ) -> dict[str, object]:
+        """校验新变量生成步骤的参数结构。"""
+        method = parameters.get("method")
+        new_column = parameters.get("new_column")
+        supported_methods = {"binary_operation", "concat"}
+
+        if method not in supported_methods:
+            raise DatasetCleaningError("新变量生成步骤的 method 不受支持。")
+        if not isinstance(new_column, str) or not new_column.strip():
+            raise DatasetCleaningError("新变量生成步骤缺少有效的新字段名。")
+
+        parameters["new_column"] = new_column.strip()
+
+        if method == "binary_operation":
+            left_column = parameters.get("left_column")
+            right_column = parameters.get("right_column")
+            operator = parameters.get("operator")
+            supported_operators = {"add", "subtract", "multiply", "divide"}
+
+            if not isinstance(left_column, str) or not left_column.strip():
+                raise DatasetCleaningError("新变量计算步骤缺少有效的 left_column。")
+            if not isinstance(right_column, str) or not right_column.strip():
+                raise DatasetCleaningError("新变量计算步骤缺少有效的 right_column。")
+            if operator not in supported_operators:
+                raise DatasetCleaningError("新变量计算步骤的 operator 不受支持。")
+
+            parameters["left_column"] = left_column.strip()
+            parameters["right_column"] = right_column.strip()
+            return parameters
+
+        raw_source_columns = parameters.get("source_columns")
+        if not isinstance(raw_source_columns, list) or not raw_source_columns:
+            raise DatasetCleaningError("字段拼接步骤必须提供非空的 source_columns 列表。")
+
+        normalized_source_columns: list[str] = []
+        for column in raw_source_columns:
+            if not isinstance(column, str) or not column.strip():
+                raise DatasetCleaningError("字段拼接步骤包含无效的来源字段名。")
+            normalized_source_columns.append(column.strip())
+
+        parameters["source_columns"] = normalized_source_columns
+        separator = parameters.get("separator", "")
+        parameters["separator"] = "" if separator is None else str(separator)
         return parameters

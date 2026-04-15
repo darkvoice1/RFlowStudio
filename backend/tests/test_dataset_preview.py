@@ -303,3 +303,44 @@ def test_get_dataset_preview_applies_recode_step() -> None:
         {"id": "2", "gender": "女", "score": "88"},
         {"id": "3", "gender": "3", "score": "91"},
     ]
+
+
+def test_get_dataset_preview_applies_derive_variable_binary_operation_step() -> None:
+    """验证新变量计算步骤会把运算结果作为新列追加到预览中。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,math,english\n1,80,90\n2,70,85\n3,60,\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "derive_variable",
+            "name": "生成总分",
+            "parameters": {
+                "method": "binary_operation",
+                "new_column": "total",
+                "left_column": "math",
+                "right_column": "english",
+                "operator": "add",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["columns"] == ["id", "math", "english", "total"]
+    assert payload["rows"] == [
+        {"id": "1", "math": "80", "english": "90", "total": "170"},
+        {"id": "2", "math": "70", "english": "85", "total": "155"},
+        {"id": "3", "math": "60", "english": None, "total": None},
+    ]

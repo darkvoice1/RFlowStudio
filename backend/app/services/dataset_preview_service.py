@@ -37,7 +37,7 @@ class DatasetPreviewService:
             xlsx_header_message="XLSX 文件缺少表头，暂时无法预览。",
             xlsx_invalid_message="XLSX 文件格式异常，暂时无法预览。",
         )
-        filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
+        columns, filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
             columns=columns,
             rows=rows,
             cleaning_steps=cleaning_steps or [],
@@ -72,7 +72,7 @@ class DatasetPreviewService:
             xlsx_header_message="XLSX 文件缺少表头，暂时无法分析字段信息。",
             xlsx_invalid_message="XLSX 文件格式异常，暂时无法分析字段信息。",
         )
-        filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
+        columns, filtered_rows = self.cleaning_execute_service.apply_cleaning_steps(
             columns=columns,
             rows=rows,
             cleaning_steps=cleaning_steps or [],
