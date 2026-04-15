@@ -225,3 +225,81 @@ def test_get_dataset_preview_applies_sort_step_and_keeps_missing_values_last() -
         {"id": "3", "name": "Carol", "score": "88"},
         {"id": "2", "name": "Bob", "score": None},
     ]
+
+
+def test_get_dataset_preview_applies_missing_value_mark_values_step() -> None:
+    """验证缺失值标记步骤会把指定业务值转换成真正的空值。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,name,score\n1,Alice,95\n2,Bob,NA\n3,Carol,999\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "把特殊值标记为缺失",
+            "parameters": {
+                "method": "mark_values",
+                "column": "score",
+                "values": ["NA", "999"],
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "1", "name": "Alice", "score": "95"},
+        {"id": "2", "name": "Bob", "score": None},
+        {"id": "3", "name": "Carol", "score": None},
+    ]
+
+
+def test_get_dataset_preview_applies_recode_step() -> None:
+    """验证重编码步骤会把指定列的值按映射关系改写。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender,score\n1,1,95\n2,2,88\n3,3,91\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "recode",
+            "name": "性别编码转中文",
+            "parameters": {
+                "column": "gender",
+                "mapping": {
+                    "1": "男",
+                    "2": "女",
+                },
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "1", "gender": "男", "score": "95"},
+        {"id": "2", "gender": "女", "score": "88"},
+        {"id": "3", "gender": "3", "score": "91"},
+    ]

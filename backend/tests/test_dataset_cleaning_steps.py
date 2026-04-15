@@ -260,3 +260,144 @@ def test_create_sort_cleaning_step_rejects_invalid_direction() -> None:
     assert response.json() == {
         "detail": "排序步骤的 direction 只支持 asc 或 desc。"
     }
+
+
+def test_create_missing_value_mark_values_step_records_normalized_values() -> None:
+    """验证缺失值标记步骤会保存整理后的标记值列表。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,NA\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "把特殊值标记成缺失",
+            "parameters": {
+                "method": "mark_values",
+                "column": "score",
+                "values": [" NA ", "999"],
+            },
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 201
+    assert payload["parameters"] == {
+        "method": "mark_values",
+        "column": "score",
+        "values": ["NA", "999"],
+    }
+
+
+def test_create_missing_value_mark_values_step_rejects_empty_values() -> None:
+    """验证缺失值标记步骤会拒绝空的标记值列表。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "非法缺失值标记",
+            "parameters": {
+                "method": "mark_values",
+                "column": "score",
+                "values": [],
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "缺失值标记步骤必须提供非空的 values 列表。"
+    }
+
+
+def test_create_recode_cleaning_step_records_normalized_mapping() -> None:
+    """验证重编码步骤会保存整理后的映射关系。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender\n1,1\n2,2\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "recode",
+            "name": "性别编码转中文",
+            "parameters": {
+                "column": "gender",
+                "mapping": {
+                    " 1 ": " 男 ",
+                    "2": "女",
+                },
+            },
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 201
+    assert payload["parameters"] == {
+        "column": "gender",
+        "mapping": {
+            "1": "男",
+            "2": "女",
+        },
+    }
+
+
+def test_create_recode_cleaning_step_rejects_empty_mapping() -> None:
+    """验证重编码步骤会拒绝空映射。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender\n1,1\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "recode",
+            "name": "非法重编码",
+            "parameters": {
+                "column": "gender",
+                "mapping": {},
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "重编码步骤必须提供非空的 mapping 映射。"
+    }

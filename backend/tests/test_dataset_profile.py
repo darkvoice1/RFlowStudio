@@ -210,3 +210,117 @@ def test_get_dataset_profile_applies_missing_value_fill_step() -> None:
             "sample_values": ["A", "B", "未知"],
         },
     ]
+
+
+def test_get_dataset_profile_applies_missing_value_mark_values_step() -> None:
+    """验证缺失值标记步骤会同步影响字段分析里的缺失统计。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,95,A\n2,NA,B\n3,999,A\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "把特殊分数标记为缺失",
+            "parameters": {
+                "method": "mark_values",
+                "column": "score",
+                "values": ["NA", "999"],
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/profile")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["row_count"] == 3
+    assert payload["columns"] == [
+        {
+            "name": "id",
+            "inferred_type": "integer",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["1", "2", "3"],
+        },
+        {
+            "name": "score",
+            "inferred_type": "integer",
+            "nullable": True,
+            "missing_count": 2,
+            "unique_count": 1,
+            "sample_values": ["95"],
+        },
+        {
+            "name": "group",
+            "inferred_type": "string",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 2,
+            "sample_values": ["A", "B"],
+        },
+    ]
+
+
+def test_get_dataset_profile_applies_recode_step() -> None:
+    """验证重编码步骤会同步影响字段分析的字段类型和值分布。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender\n1,1\n2,2\n3,1\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "recode",
+            "name": "性别编码转中文",
+            "parameters": {
+                "column": "gender",
+                "mapping": {
+                    "1": "男",
+                    "2": "女",
+                },
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/profile")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["row_count"] == 3
+    assert payload["columns"] == [
+        {
+            "name": "id",
+            "inferred_type": "integer",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["1", "2", "3"],
+        },
+        {
+            "name": "gender",
+            "inferred_type": "string",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 2,
+            "sample_values": ["男", "女"],
+        },
+    ]

@@ -105,6 +105,8 @@ class DatasetCleaningManageService:
             return self._validate_missing_value_parameters(parameters)
         if payload.step_type == "sort":
             return self._validate_sort_parameters(parameters)
+        if payload.step_type == "recode":
+            return self._validate_recode_parameters(parameters)
 
         return parameters
 
@@ -149,7 +151,7 @@ class DatasetCleaningManageService:
     ) -> dict[str, object]:
         """校验缺失值处理步骤的参数结构。"""
         method = parameters.get("method")
-        supported_methods = {"drop_rows", "fill_value"}
+        supported_methods = {"drop_rows", "fill_value", "mark_values"}
 
         if method not in supported_methods:
             raise DatasetCleaningError("缺失值处理步骤的 method 不受支持。")
@@ -162,6 +164,29 @@ class DatasetCleaningManageService:
             fill_value = parameters.get("value")
             if fill_value is None or not str(fill_value).strip():
                 raise DatasetCleaningError("缺失值替换步骤必须提供非空的 value 参数。")
+
+        if method == "mark_values":
+            column = parameters.get("column")
+            if not isinstance(column, str) or not column.strip():
+                raise DatasetCleaningError("缺失值标记步骤缺少有效的字段名。")
+
+            raw_values = parameters.get("values")
+            if not isinstance(raw_values, list) or not raw_values:
+                raise DatasetCleaningError("缺失值标记步骤必须提供非空的 values 列表。")
+
+            normalized_values: list[str] = []
+            for item in raw_values:
+                if item is None:
+                    continue
+
+                normalized_item = str(item).strip()
+                if normalized_item:
+                    normalized_values.append(normalized_item)
+
+            if not normalized_values:
+                raise DatasetCleaningError("缺失值标记步骤必须提供至少一个有效标记值。")
+
+            parameters["values"] = normalized_values
 
         return parameters
 
@@ -179,4 +204,31 @@ class DatasetCleaningManageService:
         if direction not in supported_directions:
             raise DatasetCleaningError("排序步骤的 direction 只支持 asc 或 desc。")
 
+        return parameters
+
+    def _validate_recode_parameters(
+        self,
+        parameters: dict[str, object],
+    ) -> dict[str, object]:
+        """校验字段重编码步骤的参数结构。"""
+        column = parameters.get("column")
+        raw_mapping = parameters.get("mapping")
+
+        if not isinstance(column, str) or not column.strip():
+            raise DatasetCleaningError("重编码步骤缺少有效的字段名。")
+        if not isinstance(raw_mapping, dict) or not raw_mapping:
+            raise DatasetCleaningError("重编码步骤必须提供非空的 mapping 映射。")
+
+        normalized_mapping: dict[str, str] = {}
+        for source_value, target_value in raw_mapping.items():
+            normalized_source = str(source_value).strip()
+            normalized_target = str(target_value).strip()
+            if not normalized_source:
+                raise DatasetCleaningError("重编码步骤的原始值不能为空。")
+            if not normalized_target:
+                raise DatasetCleaningError("重编码步骤的目标值不能为空。")
+
+            normalized_mapping[normalized_source] = normalized_target
+
+        parameters["mapping"] = normalized_mapping
         return parameters

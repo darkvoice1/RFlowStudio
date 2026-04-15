@@ -28,6 +28,9 @@ class DatasetCleaningExecuteService:
                 continue
             if step.step_type == "sort":
                 filtered_rows = self._apply_sort_step(columns, filtered_rows, step)
+                continue
+            if step.step_type == "recode":
+                filtered_rows = self._apply_recode_step(columns, filtered_rows, step)
 
         return filtered_rows
 
@@ -121,6 +124,28 @@ class DatasetCleaningExecuteService:
 
             return filled_rows
 
+        if method == "mark_values":
+            column = str(parameters["column"])
+            if column not in columns:
+                raise DatasetPreviewError(
+                    f"缺失值处理字段 {column} 不存在，暂时无法执行当前步骤。"
+                )
+
+            marker_values = {
+                self._normalize_value(item)
+                for item in parameters.get("values", [])
+            }
+            marker_values.discard(None)
+
+            marked_rows: list[dict[str, str | None]] = []
+            for row in rows:
+                updated_row = dict(row)
+                if updated_row.get(column) in marker_values:
+                    updated_row[column] = None
+                marked_rows.append(updated_row)
+
+            return marked_rows
+
         raise DatasetPreviewError("当前缺失值处理步骤包含不受支持的 method。")
 
     def _row_has_missing_value(
@@ -168,6 +193,35 @@ class DatasetCleaningExecuteService:
             )
 
         return sorted_rows + missing_rows
+
+    def _apply_recode_step(
+        self,
+        columns: list[str],
+        rows: list[dict[str, str | None]],
+        step: DatasetCleaningStepRecord,
+    ) -> list[dict[str, str | None]]:
+        """执行单个字段重编码步骤并返回处理后的行数据。"""
+        parameters = step.parameters
+        column = str(parameters["column"])
+        mapping = {
+            str(source): str(target)
+            for source, target in dict(parameters["mapping"]).items()
+        }
+
+        if column not in columns:
+            raise DatasetPreviewError(
+                f"重编码字段 {column} 不存在，暂时无法执行当前重编码步骤。"
+            )
+
+        recoded_rows: list[dict[str, str | None]] = []
+        for row in rows:
+            updated_row = dict(row)
+            current_value = updated_row.get(column)
+            if current_value is not None and current_value in mapping:
+                updated_row[column] = mapping[current_value]
+            recoded_rows.append(updated_row)
+
+        return recoded_rows
 
     def _should_sort_as_number(
         self,
