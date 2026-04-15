@@ -1,3 +1,4 @@
+from pathlib import Path
 from threading import Thread
 
 from fastapi import UploadFile
@@ -10,11 +11,13 @@ from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
     DatasetCleaningStepListResponse,
+    DatasetCleaningStepRecord,
     DatasetCleaningStepResponse,
     DatasetDetailResponse,
     DatasetListResponse,
     DatasetPreviewResponse,
     DatasetProfileResponse,
+    DatasetRecord,
     DatasetUploadCapabilitiesResponse,
     DatasetUploadResponse,
 )
@@ -169,12 +172,13 @@ class DatasetService:
             data_file_path=data_file_path,
             payload=payload,
         )
+        cleaning_steps = self.cleaning_manage_service.list_enabled_steps(dataset_id)
         task = task_service.create_task(task_type="dataset_analysis", dataset_id=dataset_id)
 
         # 先把分析任务骨架接入后台线程，后续具体统计方法可以沿同一入口继续扩展。
         worker = Thread(
             target=self._run_dataset_analysis_task,
-            args=(task.id, prepared_request),
+            args=(task.id, record, data_file_path, prepared_request, cleaning_steps),
             daemon=True,
         )
         worker.start()
@@ -199,12 +203,20 @@ class DatasetService:
     def _run_dataset_analysis_task(
         self,
         task_id: str,
+        record: DatasetRecord,
+        data_file_path: Path,
         prepared_request: DatasetAnalysisPreparedRequest,
+        cleaning_steps: list[DatasetCleaningStepRecord],
     ) -> None:
-        """在后台执行统计分析任务骨架并更新状态。"""
+        """在后台执行统计分析任务并更新状态。"""
         try:
             task_service.mark_running(task_id)
-            result = self.analysis_service.build_result_skeleton(prepared_request)
+            result = self.analysis_service.build_result(
+                record=record,
+                data_file_path=data_file_path,
+                prepared_request=prepared_request,
+                cleaning_steps=cleaning_steps,
+            )
             task_service.mark_completed(task_id, result.model_dump(mode="json"))
         except Exception as exc:
             # 当前阶段先统一把分析任务异常收敛到任务失败状态，避免线程异常直接丢失。

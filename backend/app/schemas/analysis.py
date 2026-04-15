@@ -70,7 +70,7 @@ class DatasetAnalysisResult(BaseModel):
     analysis_type: DatasetAnalysisType
     variables: list[str]
     group_variable: str | None
-    status: Literal["skeleton_ready"]
+    status: Literal["skeleton_ready", "completed"]
     summary: DatasetAnalysisSummary
     tables: list[DatasetAnalysisTable] = Field(default_factory=list)
     plots: list[DatasetAnalysisPlot] = Field(default_factory=list)

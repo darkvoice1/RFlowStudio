@@ -3,11 +3,19 @@ from pathlib import Path
 from app.core.exceptions import DatasetAnalysisError
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
+    DatasetAnalysisPlot,
     DatasetAnalysisPreparedRequest,
     DatasetAnalysisResult,
     DatasetAnalysisSummary,
+    DatasetAnalysisTable,
 )
-from app.schemas.dataset import DatasetRecord
+from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
+from app.services.dataset.analysis.dataset_descriptive_statistics_service import (
+    DatasetDescriptiveStatisticsService,
+)
+from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
+    DatasetCleaningExecuteService,
+)
 from app.services.dataset.dataset_reader_service import DatasetReaderService
 
 
@@ -17,6 +25,8 @@ class DatasetAnalysisService:
     def __init__(self) -> None:
         """初始化统计分析服务依赖的读取器。"""
         self.reader_service = DatasetReaderService()
+        self.cleaning_execute_service = DatasetCleaningExecuteService()
+        self.descriptive_statistics_service = DatasetDescriptiveStatisticsService()
 
     def prepare_request(
         self,
@@ -52,6 +62,38 @@ class DatasetAnalysisService:
             options=dict(payload.options),
         )
 
+    def build_result(
+        self,
+        record: DatasetRecord,
+        data_file_path: Path,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        cleaning_steps: list[DatasetCleaningStepRecord],
+    ) -> DatasetAnalysisResult:
+        """根据分析类型生成统计分析结果。"""
+        columns, raw_rows = self.reader_service.read_all_rows(
+            record=record,
+            data_file_path=data_file_path,
+            empty_message="当前统计分析接口暂不支持该文件格式。",
+            csv_header_message="CSV 文件缺少表头，暂时无法发起统计分析。",
+            xlsx_header_message="XLSX 文件缺少表头，暂时无法发起统计分析。",
+            xlsx_invalid_message="XLSX 文件格式异常，暂时无法发起统计分析。",
+        )
+        columns, rows = self.cleaning_execute_service.apply_cleaning_steps(
+            columns=columns,
+            rows=raw_rows,
+            cleaning_steps=cleaning_steps,
+        )
+
+        if prepared_request.analysis_type == "descriptive_statistics":
+            return self.descriptive_statistics_service.build_result(
+                prepared_request=prepared_request,
+                columns=columns,
+                rows=rows,
+                raw_row_count=len(raw_rows),
+            )
+
+        return self.build_result_skeleton(prepared_request)
+
     def build_result_skeleton(
         self,
         prepared_request: DatasetAnalysisPreparedRequest,
@@ -72,6 +114,8 @@ class DatasetAnalysisService:
                 missing_value_strategy="沿用当前数据清洗步骤后的默认缺失值处理策略",
                 note="当前阶段已完成统计分析任务统一骨架，具体统计计算将在下一小步接入。",
             ),
+            tables=self._build_skeleton_tables(),
+            plots=self._build_skeleton_plots(),
             interpretations=[
                 "当前返回的是统一分析结果骨架，用于打通阶段四的任务链路。",
                 "后续接入具体统计方法后，会在同一结果结构中补齐摘要、表格和图形。",
@@ -164,3 +208,25 @@ class DatasetAnalysisService:
         if analysis_type == "chi_square_test":
             return "卡方检验"
         return "相关分析"
+
+    def _build_skeleton_tables(self) -> list[DatasetAnalysisTable]:
+        """生成未落地分析方法时的占位表格结构。"""
+        return [
+            DatasetAnalysisTable(
+                key="analysis_placeholder",
+                title="分析结果表格占位",
+                columns=[],
+                rows=[],
+            )
+        ]
+
+    def _build_skeleton_plots(self) -> list[DatasetAnalysisPlot]:
+        """生成未落地分析方法时的占位图形结构。"""
+        return [
+            DatasetAnalysisPlot(
+                key="analysis_placeholder_plot",
+                title="分析图形占位",
+                plot_type="placeholder",
+                spec={},
+            )
+        ]
