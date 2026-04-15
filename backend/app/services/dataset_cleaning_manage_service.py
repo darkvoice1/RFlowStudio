@@ -98,10 +98,19 @@ class DatasetCleaningManageService:
         payload: DatasetCleaningStepCreateRequest,
     ) -> dict[str, object]:
         """校验不同清洗步骤的参数结构。"""
-        if payload.step_type != "filter":
-            return dict(payload.parameters)
-
         parameters = dict(payload.parameters)
+        if payload.step_type == "filter":
+            return self._validate_filter_parameters(parameters)
+        if payload.step_type == "missing_value":
+            return self._validate_missing_value_parameters(parameters)
+
+        return parameters
+
+    def _validate_filter_parameters(
+        self,
+        parameters: dict[str, object],
+    ) -> dict[str, object]:
+        """校验筛选步骤的参数结构。"""
         operator = parameters.get("operator")
         column = parameters.get("column")
         supported_operators = {
@@ -129,5 +138,27 @@ class DatasetCleaningManageService:
         if operator == "between":
             if "start" not in parameters or "end" not in parameters:
                 raise DatasetCleaningError("区间筛选必须同时提供 start 和 end 参数。")
+
+        return parameters
+
+    def _validate_missing_value_parameters(
+        self,
+        parameters: dict[str, object],
+    ) -> dict[str, object]:
+        """校验缺失值处理步骤的参数结构。"""
+        method = parameters.get("method")
+        supported_methods = {"drop_rows", "fill_value"}
+
+        if method not in supported_methods:
+            raise DatasetCleaningError("缺失值处理步骤的 method 不受支持。")
+
+        if method == "fill_value":
+            column = parameters.get("column")
+            if not isinstance(column, str) or not column.strip():
+                raise DatasetCleaningError("缺失值替换步骤缺少有效的字段名。")
+
+            fill_value = parameters.get("value")
+            if fill_value is None or not str(fill_value).strip():
+                raise DatasetCleaningError("缺失值替换步骤必须提供非空的 value 参数。")
 
         return parameters

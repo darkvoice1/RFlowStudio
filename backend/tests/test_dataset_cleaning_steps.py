@@ -160,3 +160,71 @@ def test_create_filter_cleaning_step_rejects_invalid_operator() -> None:
     assert response.json() == {
         "detail": "筛选步骤的操作符不受支持。"
     }
+
+
+def test_create_missing_value_cleaning_step_records_method_parameters() -> None:
+    """验证缺失值处理步骤可以按当前第一版参数结构记录下来。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "缺失分数补 0",
+            "parameters": {
+                "method": "fill_value",
+                "column": "score",
+                "value": "0",
+            },
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 201
+    assert payload["step_type"] == "missing_value"
+    assert payload["parameters"] == {
+        "method": "fill_value",
+        "column": "score",
+        "value": "0",
+    }
+
+
+def test_create_missing_value_cleaning_step_rejects_invalid_method() -> None:
+    """验证缺失值处理步骤的非法 method 会被明确拒绝。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "非法缺失值处理",
+            "parameters": {
+                "method": "unknown",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "缺失值处理步骤的 method 不受支持。"
+    }

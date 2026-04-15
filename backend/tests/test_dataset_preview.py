@@ -150,3 +150,40 @@ def test_get_dataset_preview_applies_enabled_filter_steps() -> None:
     ]
     assert payload["preview_row_count"] == 2
     assert payload["has_more"] is False
+
+
+def test_get_dataset_preview_applies_missing_value_drop_rows_step() -> None:
+    """验证缺失值删除步骤会把含缺失值的整行从预览结果中移除。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,name,score\n1,Alice,95\n2,Bob,\n3,,91\n4,David,85\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "删除含缺失值记录",
+            "parameters": {
+                "method": "drop_rows",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "1", "name": "Alice", "score": "95"},
+        {"id": "4", "name": "David", "score": "85"},
+    ]
+    assert payload["preview_row_count"] == 2
+    assert payload["has_more"] is False

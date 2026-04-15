@@ -150,3 +150,63 @@ def test_get_dataset_profile_applies_enabled_filter_steps() -> None:
             "sample_values": ["A"],
         },
     ]
+
+
+def test_get_dataset_profile_applies_missing_value_fill_step() -> None:
+    """验证缺失值替换步骤会同步影响字段分析统计结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,95,A\n2,,B\n3,91,\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "missing_value",
+            "name": "缺失分组补未知",
+            "parameters": {
+                "method": "fill_value",
+                "column": "group",
+                "value": "未知",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/profile")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["row_count"] == 3
+    assert payload["columns"] == [
+        {
+            "name": "id",
+            "inferred_type": "integer",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["1", "2", "3"],
+        },
+        {
+            "name": "score",
+            "inferred_type": "integer",
+            "nullable": True,
+            "missing_count": 1,
+            "unique_count": 2,
+            "sample_values": ["95", "91"],
+        },
+        {
+            "name": "group",
+            "inferred_type": "string",
+            "nullable": False,
+            "missing_count": 0,
+            "unique_count": 3,
+            "sample_values": ["A", "B", "未知"],
+        },
+    ]

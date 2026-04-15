@@ -16,10 +16,15 @@ class DatasetCleaningExecuteService:
         """按顺序把已启用的清洗步骤作用到当前行数据上。"""
         filtered_rows = rows
         for step in cleaning_steps:
-            if step.step_type != "filter":
+            if step.step_type == "filter":
+                filtered_rows = self._apply_filter_step(columns, filtered_rows, step)
                 continue
-
-            filtered_rows = self._apply_filter_step(columns, filtered_rows, step)
+            if step.step_type == "missing_value":
+                filtered_rows = self._apply_missing_value_step(
+                    columns,
+                    filtered_rows,
+                    step,
+                )
 
         return filtered_rows
 
@@ -78,6 +83,54 @@ class DatasetCleaningExecuteService:
             )
 
         raise DatasetPreviewError("当前筛选步骤包含不受支持的操作符。")
+
+    def _apply_missing_value_step(
+        self,
+        columns: list[str],
+        rows: list[dict[str, str | None]],
+        step: DatasetCleaningStepRecord,
+    ) -> list[dict[str, str | None]]:
+        """执行单个缺失值处理步骤并返回处理后的行数据。"""
+        parameters = step.parameters
+        method = str(parameters["method"])
+
+        if method == "drop_rows":
+            # 第一版先按整行处理，只要任意字段缺失就移除该记录。
+            return [row for row in rows if not self._row_has_missing_value(columns, row)]
+
+        if method == "fill_value":
+            column = str(parameters["column"])
+            if column not in columns:
+                raise DatasetPreviewError(
+                    f"缺失值处理字段 {column} 不存在，暂时无法执行当前步骤。"
+                )
+
+            fill_value = self._normalize_value(parameters.get("value"))
+            if fill_value is None:
+                raise DatasetPreviewError("缺失值替换步骤缺少有效的替换值。")
+
+            filled_rows: list[dict[str, str | None]] = []
+            for row in rows:
+                updated_row = dict(row)
+                if updated_row.get(column) is None:
+                    updated_row[column] = fill_value
+                filled_rows.append(updated_row)
+
+            return filled_rows
+
+        raise DatasetPreviewError("当前缺失值处理步骤包含不受支持的 method。")
+
+    def _row_has_missing_value(
+        self,
+        columns: list[str],
+        row: dict[str, str | None],
+    ) -> bool:
+        """判断当前整行是否至少包含一个缺失值。"""
+        for column in columns:
+            if row.get(column) is None:
+                return True
+
+        return False
 
     def _compare_numeric_value(
         self,
