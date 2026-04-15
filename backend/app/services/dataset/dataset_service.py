@@ -3,6 +3,7 @@ from threading import Thread
 from fastapi import UploadFile
 
 from app.schemas.dataset import (
+    DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
     DatasetCleaningStepListResponse,
     DatasetCleaningStepResponse,
@@ -16,6 +17,9 @@ from app.schemas.dataset import (
 from app.schemas.task import TaskListResponse, TaskResponse
 from app.services.dataset.cleaning.dataset_cleaning_manage_service import (
     DatasetCleaningManageService,
+)
+from app.services.dataset.cleaning.dataset_cleaning_r_script_service import (
+    DatasetCleaningRScriptService,
 )
 from app.services.dataset.dataset_preview_service import DatasetPreviewService
 from app.services.dataset.dataset_upload_service import DatasetUploadService
@@ -32,6 +36,7 @@ class DatasetService:
         self.cleaning_manage_service = DatasetCleaningManageService(
             upload_service=self.upload_service
         )
+        self.cleaning_r_script_service = DatasetCleaningRScriptService()
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -124,6 +129,21 @@ class DatasetService:
     ) -> DatasetCleaningStepResponse:
         """为指定数据集记录一条新的清洗步骤。"""
         return self.cleaning_manage_service.create_cleaning_step(dataset_id, payload)
+
+    def get_dataset_cleaning_r_script(
+        self,
+        dataset_id: str,
+    ) -> DatasetCleaningRScriptResponse:
+        """返回指定数据集当前清洗步骤对应的 R 代码草稿。"""
+        record = self.upload_service.load_record(dataset_id)
+        cleaning_steps = self.cleaning_manage_service.list_all_steps(dataset_id)
+        script = self.cleaning_r_script_service.build_script(record, cleaning_steps)
+        return DatasetCleaningRScriptResponse(
+            dataset_id=record.id,
+            file_name=record.file_name,
+            step_count=len(cleaning_steps),
+            script=script,
+        )
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""

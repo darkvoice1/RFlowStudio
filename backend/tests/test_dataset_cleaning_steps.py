@@ -2,7 +2,9 @@ from io import BytesIO
 
 from fastapi.testclient import TestClient
 
+from app.db.session import session_scope
 from app.main import app
+from app.models.dataset import DatasetCleaningStepModel
 
 client = TestClient(app)
 
@@ -100,6 +102,48 @@ def test_create_dataset_cleaning_step_records_reproducible_order() -> None:
         second_payload["id"],
     ]
     assert [item["order"] for item in list_payload["items"]] == [1, 2]
+
+
+def test_create_dataset_cleaning_step_persists_into_database() -> None:
+    """验证新增清洗步骤后，数据库中会留下对应的步骤记录。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "filter",
+            "name": "筛选高分样本",
+            "parameters": {
+                "column": "score",
+                "operator": "gte",
+                "value": "90",
+            },
+        },
+    )
+    payload = response.json()
+
+    with session_scope() as session:
+        stored_step = session.get(DatasetCleaningStepModel, payload["id"])
+
+    assert response.status_code == 201
+    assert stored_step is not None
+    assert stored_step.dataset_id == dataset_id
+    assert stored_step.order == 1
+    assert stored_step.parameters == {
+        "column": "score",
+        "operator": "gte",
+        "value": "90",
+    }
 
 
 def test_dataset_cleaning_steps_return_404_for_unknown_dataset() -> None:
@@ -470,4 +514,108 @@ def test_create_derive_variable_cleaning_step_rejects_invalid_method() -> None:
     assert response.status_code == 400
     assert response.json() == {
         "detail": "新变量生成步骤的 method 不受支持。"
+    }
+
+
+def test_get_dataset_cleaning_r_script_returns_base_draft_for_new_dataset() -> None:
+    """验证没有清洗步骤的数据集也可以导出基础 R 代码草稿。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.get(f"/api/v1/datasets/{dataset_id}/cleaning-r-script")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["dataset_id"] == dataset_id
+    assert payload["file_name"] == "survey.csv"
+    assert payload["step_count"] == 0
+    assert "library(readr)" in payload["script"]
+    assert "# 当前还没有记录任何清洗步骤" in payload["script"]
+
+
+def test_get_dataset_cleaning_r_script_contains_current_step_draft() -> None:
+    """验证导出的 R 草稿会按顺序包含当前清洗步骤对应的代码。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender,math,english\n1,1,80,90\n2,2,70,85\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "filter",
+            "name": "筛选高分样本",
+            "parameters": {
+                "column": "math",
+                "operator": "gte",
+                "value": "70",
+            },
+        },
+    )
+    client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "recode",
+            "name": "性别编码转中文",
+            "parameters": {
+                "column": "gender",
+                "mapping": {
+                    "1": "男",
+                    "2": "女",
+                },
+            },
+        },
+    )
+    client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "derive_variable",
+            "name": "生成总分",
+            "parameters": {
+                "method": "binary_operation",
+                "new_column": "total",
+                "left_column": "math",
+                "right_column": "english",
+                "operator": "add",
+            },
+        },
+    )
+
+    response = client.get(f"/api/v1/datasets/{dataset_id}/cleaning-r-script")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["step_count"] == 3
+    assert "# 步骤 1: 筛选高分样本" in payload["script"]
+    assert (
+        "cleaned_data <- cleaned_data[rflow_num(cleaned_data[[\"math\"]]) >= 70, "
+        ", drop = FALSE]"
+    ) in payload["script"]
+    assert "recode_map <- c(\"男\" = \"1\", \"女\" = \"2\")" in payload["script"]
+    assert "cleaned_data[[\"total\"]] <- rflow_format_number(result_num)" in payload["script"]
+
+
+def test_get_dataset_cleaning_r_script_returns_404_for_unknown_dataset() -> None:
+    """验证不存在的数据集不能导出伪造的 R 代码草稿。"""
+    response = client.get("/api/v1/datasets/not-found/cleaning-r-script")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的数据集不存在。"
     }

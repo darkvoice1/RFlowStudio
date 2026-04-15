@@ -1,12 +1,13 @@
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import uuid4
 
-from app.core.config import settings
-from app.core.exceptions import DatasetCleaningError
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.exceptions import DatasetCleaningError, DatasetNotFoundError
+from app.db.session import session_scope
+from app.models.dataset import DatasetCleaningStepModel, DatasetRecordModel
 from app.schemas.dataset import (
-    DatasetCleaningFlowRecord,
     DatasetCleaningStepCreateRequest,
     DatasetCleaningStepListResponse,
     DatasetCleaningStepRecord,
@@ -25,8 +26,7 @@ class DatasetCleaningManageService:
     def list_cleaning_steps(self, dataset_id: str) -> DatasetCleaningStepListResponse:
         """返回指定数据集当前已记录的清洗步骤。"""
         self.upload_service.load_record(dataset_id)
-        flow_record = self._load_flow_record(dataset_id)
-        ordered_steps = sorted(flow_record.steps, key=lambda item: item.order)
+        ordered_steps = self.list_all_steps(dataset_id)
 
         return DatasetCleaningStepListResponse(
             dataset_id=dataset_id,
@@ -40,58 +40,97 @@ class DatasetCleaningManageService:
         payload: DatasetCleaningStepCreateRequest,
     ) -> DatasetCleaningStepResponse:
         """为指定数据集追加一条新的清洗步骤记录。"""
-        self.upload_service.load_record(dataset_id)
-        flow_record = self._load_flow_record(dataset_id)
-        next_order = len(flow_record.steps) + 1
-        validated_parameters = self._validate_step_parameters(payload)
+        with session_scope() as session:
+            # 同一数据集新增清洗步骤时，先锁定数据集记录，降低并发顺序号冲突风险。
+            dataset_model = session.get(
+                DatasetRecordModel,
+                dataset_id,
+                with_for_update=True,
+            )
+            if dataset_model is None:
+                raise DatasetNotFoundError("请求的数据集不存在。")
 
-        # 先把步骤按顺序落盘，后续真正执行筛选或清洗时可以直接复用。
-        step_record = DatasetCleaningStepRecord(
-            id=uuid4().hex,
-            step_type=payload.step_type,
-            name=payload.name,
-            description=payload.description,
-            enabled=payload.enabled,
-            order=next_order,
-            parameters=validated_parameters,
-            created_at=datetime.now(UTC),
-        )
-        flow_record.steps.append(step_record)
-        self._save_flow_record(flow_record)
+            validated_parameters = self._validate_step_parameters(payload)
+            next_order = self._get_next_step_order(dataset_id, session)
+            step_record = DatasetCleaningStepRecord(
+                id=uuid4().hex,
+                step_type=payload.step_type,
+                name=payload.name,
+                description=payload.description,
+                enabled=payload.enabled,
+                order=next_order,
+                parameters=validated_parameters,
+                created_at=datetime.now(UTC),
+            )
+
+            # 清洗步骤现在优先入库，后续预览、字段分析和 R 草稿都会复用同一套流水。
+            session.add(self._to_step_model(dataset_id, step_record))
 
         return DatasetCleaningStepResponse(**step_record.model_dump())
 
     def list_enabled_steps(self, dataset_id: str) -> list[DatasetCleaningStepRecord]:
         """返回指定数据集当前已启用的清洗步骤记录。"""
+        all_steps = self.list_all_steps(dataset_id)
+        return [step for step in all_steps if step.enabled]
+
+    def list_all_steps(self, dataset_id: str) -> list[DatasetCleaningStepRecord]:
+        """返回指定数据集当前全部清洗步骤记录。"""
         self.upload_service.load_record(dataset_id)
-        flow_record = self._load_flow_record(dataset_id)
-        return [
-            step
-            for step in sorted(flow_record.steps, key=lambda item: item.order)
-            if step.enabled
-        ]
+        with session_scope() as session:
+            step_models = self._list_step_models_from_database(dataset_id, session)
+            return [self._to_step_record(step_model) for step_model in step_models]
 
-    def _load_flow_record(self, dataset_id: str) -> DatasetCleaningFlowRecord:
-        """读取数据集清洗步骤流水，不存在时返回空流水。"""
-        record_path = self._build_flow_record_path(dataset_id)
-        if not record_path.exists():
-            return DatasetCleaningFlowRecord(dataset_id=dataset_id, steps=[])
+    def _list_step_models_from_database(
+        self,
+        dataset_id: str,
+        session: Session,
+    ) -> list[DatasetCleaningStepModel]:
+        """按顺序从数据库读取指定数据集的清洗步骤。"""
+        return session.scalars(
+            select(DatasetCleaningStepModel)
+            .where(DatasetCleaningStepModel.dataset_id == dataset_id)
+            .order_by(DatasetCleaningStepModel.order)
+        ).all()
 
-        return DatasetCleaningFlowRecord.model_validate_json(
-            record_path.read_text(encoding="utf-8")
+    def _get_next_step_order(self, dataset_id: str, session: Session) -> int:
+        """计算当前数据集下一条清洗步骤的顺序号。"""
+        current_max_order = session.scalar(
+            select(func.max(DatasetCleaningStepModel.order)).where(
+                DatasetCleaningStepModel.dataset_id == dataset_id
+            )
+        )
+        return (current_max_order or 0) + 1
+
+    def _to_step_record(self, model: DatasetCleaningStepModel) -> DatasetCleaningStepRecord:
+        """把数据库模型转成系统内部使用的清洗步骤记录。"""
+        return DatasetCleaningStepRecord(
+            id=model.id,
+            step_type=model.step_type,  # type: ignore[arg-type]
+            name=model.name,
+            description=model.description,
+            enabled=model.enabled,
+            order=model.order,
+            parameters=dict(model.parameters),
+            created_at=model.created_at,
         )
 
-    def _save_flow_record(self, flow_record: DatasetCleaningFlowRecord) -> None:
-        """把数据清洗步骤流水写入本地 JSON 文件。"""
-        record_path = self._build_flow_record_path(flow_record.dataset_id)
-        record_path.write_text(
-            json.dumps(flow_record.model_dump(mode="json"), ensure_ascii=False, indent=2),
-            encoding="utf-8",
+    def _to_step_model(
+        self,
+        dataset_id: str,
+        step_record: DatasetCleaningStepRecord,
+    ) -> DatasetCleaningStepModel:
+        """把系统内部的清洗步骤记录转成数据库模型。"""
+        return DatasetCleaningStepModel(
+            id=step_record.id,
+            dataset_id=dataset_id,
+            step_type=step_record.step_type,
+            name=step_record.name,
+            description=step_record.description,
+            enabled=step_record.enabled,
+            order=step_record.order,
+            parameters=dict(step_record.parameters),
+            created_at=step_record.created_at,
         )
-
-    def _build_flow_record_path(self, dataset_id: str) -> Path:
-        """构造数据清洗步骤流水文件路径。"""
-        return settings.dataset_cleaning_root / f"{dataset_id}.json"
 
     def _validate_step_parameters(
         self,

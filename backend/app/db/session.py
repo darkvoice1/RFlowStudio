@@ -65,7 +65,7 @@ def initialize_database() -> None:
 
         # 导入模型模块以注册所有表，再统一创建缺失的表结构。
         from app.db.base import Base
-        from app.models.dataset import DatasetRecordModel  # noqa: F401
+        from app.models.dataset import DatasetCleaningStepModel, DatasetRecordModel  # noqa: F401
 
         Base.metadata.create_all(bind=engine)
         _schema_initialized = True

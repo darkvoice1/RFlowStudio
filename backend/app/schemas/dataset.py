@@ -136,13 +136,6 @@ class DatasetCleaningStepRecord(BaseModel):
     created_at: datetime
 
 
-class DatasetCleaningFlowRecord(BaseModel):
-    """定义数据集清洗步骤流水的持久化结构。"""
-
-    dataset_id: str
-    steps: list[DatasetCleaningStepRecord]
-
-
 class DatasetCleaningStepResponse(BaseModel):
     """定义单个数据清洗步骤的响应结构。"""
 
@@ -162,3 +155,12 @@ class DatasetCleaningStepListResponse(BaseModel):
     dataset_id: str
     items: list[DatasetCleaningStepResponse]
     total: int
+
+
+class DatasetCleaningRScriptResponse(BaseModel):
+    """定义数据清洗 R 代码草稿接口的响应结构。"""
+
+    dataset_id: str
+    file_name: str
+    step_count: int
+    script: str

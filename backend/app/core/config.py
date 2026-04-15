@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     storage_root: Path = PROJECT_ROOT / "storage"
     upload_root: Path = PROJECT_ROOT / "storage" / "uploads"
     dataset_metadata_root: Path = PROJECT_ROOT / "storage" / "datasets"
-    dataset_cleaning_root: Path = PROJECT_ROOT / "storage" / "dataset_cleaning"
     max_upload_size_mb: int = 100
     default_preview_rows: int = 20
     max_preview_rows: int = 100
