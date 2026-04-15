@@ -2,11 +2,13 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 from app.core.config import settings
 from app.core.exceptions import (
+    DatasetAnalysisError,
     DatasetCleaningError,
     DatasetNotFoundError,
     DatasetPreviewError,
     DatasetUploadError,
 )
+from app.schemas.analysis import DatasetAnalysisCreateRequest
 from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
@@ -122,6 +124,31 @@ def create_dataset_profile_job(dataset_id: str) -> TaskResponse:
     except DatasetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/analysis-jobs",
+    response_model=TaskResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Create dataset analysis job",
+)
+def create_dataset_analysis_job(
+    dataset_id: str,
+    payload: DatasetAnalysisCreateRequest,
+) -> TaskResponse:
+    """创建统计分析异步任务，返回任务状态入口。"""
+    try:
+        return dataset_service.create_dataset_analysis_task(dataset_id, payload)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (DatasetAnalysisError, DatasetPreviewError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
 

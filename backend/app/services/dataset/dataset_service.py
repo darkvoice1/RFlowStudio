@@ -2,6 +2,10 @@ from threading import Thread
 
 from fastapi import UploadFile
 
+from app.schemas.analysis import (
+    DatasetAnalysisCreateRequest,
+    DatasetAnalysisPreparedRequest,
+)
 from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
@@ -15,6 +19,7 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
+from app.services.dataset.analysis.dataset_analysis_service import DatasetAnalysisService
 from app.services.dataset.cleaning.dataset_cleaning_manage_service import (
     DatasetCleaningManageService,
 )
@@ -37,6 +42,7 @@ class DatasetService:
             upload_service=self.upload_service
         )
         self.cleaning_r_script_service = DatasetCleaningRScriptService()
+        self.analysis_service = DatasetAnalysisService()
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -145,6 +151,35 @@ class DatasetService:
             script=script,
         )
 
+    def create_dataset_analysis_task(
+        self,
+        dataset_id: str,
+        payload: DatasetAnalysisCreateRequest,
+    ) -> TaskResponse:
+        """创建统计分析异步任务并在后台执行。"""
+        record = self.upload_service.load_record(dataset_id)
+        data_file_path = self.upload_service.resolve_data_file(
+            record=record,
+            supported_extensions={".csv", ".xlsx"},
+            unsupported_message="当前统计分析接口暂仅支持 CSV 和 XLSX 文件。",
+            missing_file_message="原始数据文件不存在，暂时无法发起统计分析。",
+        )
+        prepared_request = self.analysis_service.prepare_request(
+            record=record,
+            data_file_path=data_file_path,
+            payload=payload,
+        )
+        task = task_service.create_task(task_type="dataset_analysis", dataset_id=dataset_id)
+
+        # 先把分析任务骨架接入后台线程，后续具体统计方法可以沿同一入口继续扩展。
+        worker = Thread(
+            target=self._run_dataset_analysis_task,
+            args=(task.id, prepared_request),
+            daemon=True,
+        )
+        worker.start()
+        return task
+
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""
         try:
@@ -160,6 +195,20 @@ class DatasetService:
             except Exception:
                 # 如果数据集本身已不可读，任务失败状态仍然需要保留下来。
                 pass
+
+    def _run_dataset_analysis_task(
+        self,
+        task_id: str,
+        prepared_request: DatasetAnalysisPreparedRequest,
+    ) -> None:
+        """在后台执行统计分析任务骨架并更新状态。"""
+        try:
+            task_service.mark_running(task_id)
+            result = self.analysis_service.build_result_skeleton(prepared_request)
+            task_service.mark_completed(task_id, result.model_dump(mode="json"))
+        except Exception as exc:
+            # 当前阶段先统一把分析任务异常收敛到任务失败状态，避免线程异常直接丢失。
+            task_service.mark_failed(task_id, str(exc))
 
 
 # 提供默认服务实例，后续接入依赖注入时可以平滑替换。

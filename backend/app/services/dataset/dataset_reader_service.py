@@ -13,6 +13,34 @@ from app.schemas.dataset import DatasetRecord
 class DatasetReaderService:
     """负责按文件格式读取数据集行数据。"""
 
+    def read_columns(
+        self,
+        record: DatasetRecord,
+        data_file_path: Path,
+        empty_message: str,
+        csv_header_message: str,
+        xlsx_header_message: str,
+        xlsx_invalid_message: str,
+    ) -> list[str]:
+        """按文件格式仅读取列名，供统计分析等场景复用。"""
+        if record.extension == ".csv":
+            columns, _ = self._read_csv_rows(
+                data_file_path=data_file_path,
+                csv_header_message=csv_header_message,
+                include_rows=False,
+            )
+            return columns
+        if record.extension == ".xlsx":
+            columns, _ = self._read_xlsx_rows(
+                data_file_path=data_file_path,
+                xlsx_header_message=xlsx_header_message,
+                xlsx_invalid_message=xlsx_invalid_message,
+                include_rows=False,
+            )
+            return columns
+
+        raise DatasetPreviewError(empty_message)
+
     def read_all_rows(
         self,
         record: DatasetRecord,
@@ -41,6 +69,7 @@ class DatasetReaderService:
         self,
         data_file_path: Path,
         csv_header_message: str,
+        include_rows: bool = True,
     ) -> tuple[list[str], list[dict[str, str | None]]]:
         """读取 CSV 全量行数据。"""
         try:
@@ -51,6 +80,9 @@ class DatasetReaderService:
                     raise DatasetPreviewError(csv_header_message)
 
                 rows: list[dict[str, str | None]] = []
+                if not include_rows:
+                    return columns, rows
+
                 for row in reader:
                     cleaned_row = {
                         column: self._normalize_cell_value(row.get(column))
@@ -67,6 +99,7 @@ class DatasetReaderService:
         data_file_path: Path,
         xlsx_header_message: str,
         xlsx_invalid_message: str,
+        include_rows: bool = True,
     ) -> tuple[list[str], list[dict[str, str | None]]]:
         """读取 XLSX 全量行数据。"""
         try:
@@ -84,6 +117,9 @@ class DatasetReaderService:
             )
 
             rows: list[dict[str, str | None]] = []
+            if not include_rows:
+                return columns, rows
+
             for row in row_iterator:
                 rows.append(self._build_row_dict(columns=columns, values=row))
         finally:

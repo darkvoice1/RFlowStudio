@@ -14,5 +14,9 @@ class DatasetCleaningError(Exception):
     """表示数据清洗步骤配置或执行过程中的业务错误。"""
 
 
+class DatasetAnalysisError(Exception):
+    """表示统计分析任务配置或执行过程中的业务错误。"""
+
+
 class TaskNotFoundError(Exception):
     """表示请求的异步任务不存在。"""
