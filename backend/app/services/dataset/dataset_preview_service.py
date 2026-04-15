@@ -8,8 +8,10 @@ from app.schemas.dataset import (
     DatasetProfileResponse,
     DatasetRecord,
 )
-from app.services.dataset_cleaning_execute_service import DatasetCleaningExecuteService
-from app.services.dataset_reader_service import DatasetReaderService
+from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
+    DatasetCleaningExecuteService,
+)
+from app.services.dataset.dataset_reader_service import DatasetReaderService
 
 
 class DatasetPreviewService:

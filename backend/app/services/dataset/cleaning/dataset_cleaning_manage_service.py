@@ -12,7 +12,7 @@ from app.schemas.dataset import (
     DatasetCleaningStepRecord,
     DatasetCleaningStepResponse,
 )
-from app.services.dataset_upload_service import DatasetUploadService
+from app.services.dataset.dataset_upload_service import DatasetUploadService
 
 
 class DatasetCleaningManageService:

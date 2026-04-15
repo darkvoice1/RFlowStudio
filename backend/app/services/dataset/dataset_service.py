@@ -14,9 +14,11 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
-from app.services.dataset_cleaning_manage_service import DatasetCleaningManageService
-from app.services.dataset_preview_service import DatasetPreviewService
-from app.services.dataset_upload_service import DatasetUploadService
+from app.services.dataset.cleaning.dataset_cleaning_manage_service import (
+    DatasetCleaningManageService,
+)
+from app.services.dataset.dataset_preview_service import DatasetPreviewService
+from app.services.dataset.dataset_upload_service import DatasetUploadService
 from app.services.task_service import task_service
 
 
