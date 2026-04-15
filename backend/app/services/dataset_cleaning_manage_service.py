@@ -103,6 +103,8 @@ class DatasetCleaningManageService:
             return self._validate_filter_parameters(parameters)
         if payload.step_type == "missing_value":
             return self._validate_missing_value_parameters(parameters)
+        if payload.step_type == "sort":
+            return self._validate_sort_parameters(parameters)
 
         return parameters
 
@@ -160,5 +162,21 @@ class DatasetCleaningManageService:
             fill_value = parameters.get("value")
             if fill_value is None or not str(fill_value).strip():
                 raise DatasetCleaningError("缺失值替换步骤必须提供非空的 value 参数。")
+
+        return parameters
+
+    def _validate_sort_parameters(
+        self,
+        parameters: dict[str, object],
+    ) -> dict[str, object]:
+        """校验排序步骤的参数结构。"""
+        column = parameters.get("column")
+        direction = parameters.get("direction")
+        supported_directions = {"asc", "desc"}
+
+        if not isinstance(column, str) or not column.strip():
+            raise DatasetCleaningError("排序步骤缺少有效的字段名。")
+        if direction not in supported_directions:
+            raise DatasetCleaningError("排序步骤的 direction 只支持 asc 或 desc。")
 
         return parameters

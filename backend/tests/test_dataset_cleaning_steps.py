@@ -228,3 +228,35 @@ def test_create_missing_value_cleaning_step_rejects_invalid_method() -> None:
     assert response.json() == {
         "detail": "缺失值处理步骤的 method 不受支持。"
     }
+
+
+def test_create_sort_cleaning_step_rejects_invalid_direction() -> None:
+    """验证排序步骤的非法 direction 会被明确拒绝。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "sort",
+            "name": "非法排序",
+            "parameters": {
+                "column": "score",
+                "direction": "down",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "排序步骤的 direction 只支持 asc 或 desc。"
+    }

@@ -187,3 +187,41 @@ def test_get_dataset_preview_applies_missing_value_drop_rows_step() -> None:
     ]
     assert payload["preview_row_count"] == 2
     assert payload["has_more"] is False
+
+
+def test_get_dataset_preview_applies_sort_step_and_keeps_missing_values_last() -> None:
+    """验证排序步骤会真实影响预览顺序，并把空值统一放到最后。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "scores.csv",
+                BytesIO(b"id,name,score\n1,Alice,95\n2,Bob,\n3,Carol,88\n4,David,91\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "sort",
+            "name": "按分数降序排列",
+            "parameters": {
+                "column": "score",
+                "direction": "desc",
+            },
+        },
+    )
+    response = client.get(f"/api/v1/datasets/{dataset_id}/preview")
+    payload = response.json()
+
+    assert create_response.status_code == 201
+    assert response.status_code == 200
+    assert payload["rows"] == [
+        {"id": "1", "name": "Alice", "score": "95"},
+        {"id": "4", "name": "David", "score": "91"},
+        {"id": "3", "name": "Carol", "score": "88"},
+        {"id": "2", "name": "Bob", "score": None},
+    ]
