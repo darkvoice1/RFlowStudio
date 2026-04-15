@@ -117,14 +117,14 @@ def test_create_dataset_analysis_job_applies_cleaning_steps_before_statistics() 
     assert final_payload["result"]["tables"][0]["rows"][0]["mean"] == 95
 
 
-def test_create_unimplemented_analysis_job_returns_skeleton_result() -> None:
-    """验证尚未接入真实计算的分析方法仍返回统一骨架。"""
+def test_create_correlation_analysis_job_returns_completed_result() -> None:
+    """验证相关分析任务可以返回真实相关结果。"""
     upload_response = client.post(
         "/api/v1/datasets/upload",
         files={
             "file": (
                 "survey.csv",
-                BytesIO(b"id,score,group\n1,95,A\n2,88,B\n"),
+                BytesIO(b"id,score,age\n1,95,20\n2,88,19\n3,90,21\n"),
                 "text/csv",
             )
         },
@@ -135,7 +135,7 @@ def test_create_unimplemented_analysis_job_returns_skeleton_result() -> None:
         f"/api/v1/datasets/{dataset_id}/analysis-jobs",
         json={
             "analysis_type": "correlation_analysis",
-            "variables": ["id", "score"],
+            "variables": ["score", "age"],
         },
     )
     task_id = create_response.json()["id"]
@@ -153,9 +153,245 @@ def test_create_unimplemented_analysis_job_returns_skeleton_result() -> None:
 
     assert final_payload is not None
     assert final_payload["status"] == "completed"
-    assert final_payload["result"]["status"] == "skeleton_ready"
-    assert final_payload["result"]["tables"][0]["key"] == "analysis_placeholder"
-    assert final_payload["result"]["plots"][0]["plot_type"] == "placeholder"
+    assert final_payload["result"]["status"] == "completed"
+    assert final_payload["result"]["summary"]["title"] == "相关分析"
+    assert final_payload["result"]["tables"][0]["key"] == "correlation_matrix"
+    assert final_payload["result"]["tables"][0]["rows"][0]["score"] == 1
+    assert final_payload["result"]["tables"][0]["rows"][0]["age"] == 0.2774
+    assert final_payload["result"]["tables"][2]["rows"][0]["pair_count"] == 3
+    assert final_payload["result"]["plots"][0]["plot_type"] == "heatmap"
+    assert "皮尔逊相关系数 0.2774" in final_payload["result"]["interpretations"][0]
+
+
+def test_create_correlation_analysis_job_applies_cleaning_steps() -> None:
+    """验证相关分析会基于清洗后的数据返回结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,age\n1,95,20\n2,88,19\n3,60,30\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    cleaning_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/cleaning-steps",
+        json={
+            "step_type": "filter",
+            "name": "只保留高分样本",
+            "parameters": {
+                "column": "score",
+                "operator": "gte",
+                "value": "88",
+            },
+        },
+    )
+    assert cleaning_response.status_code == 201
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "correlation_analysis",
+            "variables": ["score", "age"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    assert final_payload["result"]["summary"]["effective_row_count"] == 2
+    assert final_payload["result"]["summary"]["excluded_row_count"] == 1
+    assert final_payload["result"]["tables"][2]["rows"][0]["pair_count"] == 2
+    assert final_payload["result"]["tables"][2]["rows"][0]["correlation"] == 1
+
+
+def test_create_correlation_analysis_job_rejects_non_numeric_columns() -> None:
+    """验证相关分析会拒绝包含非数值字段的请求。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,95,A\n2,88,B\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "correlation_analysis",
+            "variables": ["score", "group"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "failed"
+    assert final_payload["error_message"] == "相关分析当前仅支持数值型字段：group。"
+
+
+def test_create_chi_square_analysis_job_returns_completed_result() -> None:
+    """验证卡方检验任务可以返回真实检验结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,gender,treatment\n1,M,A\n2,M,A\n3,F,B\n4,F,B\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "chi_square_test",
+            "variables": ["gender", "treatment"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    assert final_payload["result"]["summary"]["title"] == "卡方检验"
+    assert final_payload["result"]["tables"][0]["key"] == "chi_square_observed"
+    assert final_payload["result"]["tables"][2]["rows"][0]["chi_square"] == 4
+    assert final_payload["result"]["tables"][2]["rows"][0]["degrees_of_freedom"] == 1
+    assert final_payload["result"]["tables"][2]["rows"][0]["p_value"] < 0.05
+    assert final_payload["result"]["plots"][0]["plot_type"] == "grouped_bar_chart"
+
+
+def test_create_independent_samples_t_test_job_returns_completed_result() -> None:
+    """验证独立样本 t 检验任务可以返回真实检验结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,10,A\n2,12,A\n3,14,B\n4,16,B\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "independent_samples_t_test",
+            "variables": ["score"],
+            "group_variable": "group",
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    assert final_payload["result"]["summary"]["title"] == "独立样本 t 检验"
+    assert final_payload["result"]["tables"][0]["key"] == "t_test_group_summary"
+    assert final_payload["result"]["tables"][1]["rows"][0]["t_statistic"] == -2.8284
+    assert final_payload["result"]["tables"][1]["rows"][0]["degrees_of_freedom"] == 2
+    assert 0.1 < final_payload["result"]["tables"][1]["rows"][0]["p_value"] < 0.11
+    assert final_payload["result"]["plots"][0]["plot_type"] == "grouped_boxplot"
+
+
+def test_create_one_way_anova_job_returns_completed_result() -> None:
+    """验证单因素方差分析任务可以返回真实检验结果。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(
+                    b"id,score,group\n1,10,A\n2,12,A\n3,20,B\n4,22,B\n5,30,C\n6,32,C\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "one_way_anova",
+            "variables": ["score"],
+            "group_variable": "group",
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    assert final_payload["result"]["summary"]["title"] == "单因素方差分析"
+    assert final_payload["result"]["tables"][0]["key"] == "anova_group_summary"
+    assert final_payload["result"]["tables"][1]["rows"][0]["f_value"] == 100
+    assert final_payload["result"]["tables"][1]["rows"][0]["degrees_of_freedom"] == 2
+    assert final_payload["result"]["tables"][1]["rows"][0]["p_value"] < 0.01
+    assert final_payload["result"]["plots"][0]["plot_type"] == "grouped_boxplot"
 
 
 def test_create_dataset_analysis_job_rejects_missing_columns() -> None:

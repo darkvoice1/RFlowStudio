@@ -10,8 +10,20 @@ from app.schemas.analysis import (
     DatasetAnalysisTable,
 )
 from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
+from app.services.dataset.analysis.dataset_anova_analysis_service import (
+    DatasetAnovaAnalysisService,
+)
+from app.services.dataset.analysis.dataset_chi_square_analysis_service import (
+    DatasetChiSquareAnalysisService,
+)
+from app.services.dataset.analysis.dataset_correlation_analysis_service import (
+    DatasetCorrelationAnalysisService,
+)
 from app.services.dataset.analysis.dataset_descriptive_statistics_service import (
     DatasetDescriptiveStatisticsService,
+)
+from app.services.dataset.analysis.dataset_t_test_analysis_service import (
+    DatasetTTestAnalysisService,
 )
 from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
     DatasetCleaningExecuteService,
@@ -27,6 +39,10 @@ class DatasetAnalysisService:
         self.reader_service = DatasetReaderService()
         self.cleaning_execute_service = DatasetCleaningExecuteService()
         self.descriptive_statistics_service = DatasetDescriptiveStatisticsService()
+        self.correlation_analysis_service = DatasetCorrelationAnalysisService()
+        self.chi_square_analysis_service = DatasetChiSquareAnalysisService()
+        self.t_test_analysis_service = DatasetTTestAnalysisService()
+        self.anova_analysis_service = DatasetAnovaAnalysisService()
 
     def prepare_request(
         self,
@@ -88,6 +104,34 @@ class DatasetAnalysisService:
             return self.descriptive_statistics_service.build_result(
                 prepared_request=prepared_request,
                 columns=columns,
+                rows=rows,
+                raw_row_count=len(raw_rows),
+            )
+
+        if prepared_request.analysis_type == "correlation_analysis":
+            return self.correlation_analysis_service.build_result(
+                prepared_request=prepared_request,
+                rows=rows,
+                raw_row_count=len(raw_rows),
+            )
+
+        if prepared_request.analysis_type == "chi_square_test":
+            return self.chi_square_analysis_service.build_result(
+                prepared_request=prepared_request,
+                rows=rows,
+                raw_row_count=len(raw_rows),
+            )
+
+        if prepared_request.analysis_type == "independent_samples_t_test":
+            return self.t_test_analysis_service.build_result(
+                prepared_request=prepared_request,
+                rows=rows,
+                raw_row_count=len(raw_rows),
+            )
+
+        if prepared_request.analysis_type == "one_way_anova":
+            return self.anova_analysis_service.build_result(
+                prepared_request=prepared_request,
                 rows=rows,
                 raw_row_count=len(raw_rows),
             )
