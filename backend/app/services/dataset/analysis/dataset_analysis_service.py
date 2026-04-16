@@ -16,6 +16,9 @@ from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
 from app.services.dataset.analysis.dataset_analysis_execution_service import (
     DatasetAnalysisExecutionService,
 )
+from app.services.dataset.analysis.dataset_analysis_r_script_service import (
+    DatasetAnalysisRScriptService,
+)
 from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
     DatasetCleaningExecuteService,
 )
@@ -30,6 +33,7 @@ class DatasetAnalysisService:
         self.reader_service = DatasetReaderService()
         self.cleaning_execute_service = DatasetCleaningExecuteService()
         self.execution_service = DatasetAnalysisExecutionService()
+        self.r_script_service = DatasetAnalysisRScriptService()
 
     def prepare_request(
         self,
@@ -87,12 +91,14 @@ class DatasetAnalysisService:
             cleaning_steps=cleaning_steps,
         )
 
-        return self.execution_service.build_result(
+        result = self.execution_service.build_result(
             prepared_request=prepared_request,
             columns=columns,
             rows=rows,
             raw_row_count=len(raw_rows),
         )
+        result.script_draft = self.r_script_service.build_script(record, prepared_request)
+        return result
 
     def save_analysis_record(
         self,

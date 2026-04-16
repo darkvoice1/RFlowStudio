@@ -76,6 +76,7 @@ class DatasetAnalysisResult(BaseModel):
     tables: list[DatasetAnalysisTable] = Field(default_factory=list)
     plots: list[DatasetAnalysisPlot] = Field(default_factory=list)
     interpretations: list[str] = Field(default_factory=list)
+    script_draft: str | None = None
 
 
 class DatasetAnalysisRecord(BaseModel):

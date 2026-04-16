@@ -500,6 +500,8 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert final_payload["result"]["tables"][0]["rows"][0]["mean"] == 91
     assert final_payload["result"]["plots"][0]["plot_type"] == "histogram"
     assert "均值为 91" in final_payload["result"]["interpretations"][0]
+    assert "# 分析方法: 描述统计" in final_payload["result"]["script_draft"]
+    assert "descriptive_result <- data.frame(" in final_payload["result"]["script_draft"]
 
     history_response = client.get(f"/api/v1/datasets/{dataset_id}/analysis-records")
     history_payload = history_response.json()
@@ -511,6 +513,7 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert history_payload["items"][0]["variables"] == ["score"]
     assert history_payload["items"][0]["task_id"] == create_payload["id"]
     assert history_payload["items"][0]["result"]["summary"]["title"] == "描述统计"
+    assert "# 分析方法: 描述统计" in history_payload["items"][0]["result"]["script_draft"]
 
 
 def test_rerun_dataset_analysis_record_creates_new_analysis_task() -> None:
