@@ -3,12 +3,13 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from app.core.config import settings
 from app.core.exceptions import (
     DatasetAnalysisError,
+    DatasetAnalysisRecordNotFoundError,
     DatasetCleaningError,
     DatasetNotFoundError,
     DatasetPreviewError,
     DatasetUploadError,
 )
-from app.schemas.analysis import DatasetAnalysisCreateRequest
+from app.schemas.analysis import DatasetAnalysisCreateRequest, DatasetAnalysisRecordListResponse
 from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
@@ -142,6 +143,44 @@ def create_dataset_analysis_job(
     try:
         return dataset_service.create_dataset_analysis_task(dataset_id, payload)
     except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (DatasetAnalysisError, DatasetPreviewError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/analysis-records",
+    response_model=DatasetAnalysisRecordListResponse,
+    summary="List dataset analysis records",
+)
+def list_dataset_analysis_records(dataset_id: str) -> DatasetAnalysisRecordListResponse:
+    """返回指定数据集当前已保存的统计分析历史记录。"""
+    try:
+        return dataset_service.list_dataset_analysis_records(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/analysis-records/{analysis_record_id}/rerun",
+    response_model=TaskResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Rerun dataset analysis record",
+)
+def rerun_dataset_analysis_record(dataset_id: str, analysis_record_id: str) -> TaskResponse:
+    """基于一条已保存的历史分析记录重新创建统计分析任务。"""
+    try:
+        return dataset_service.rerun_dataset_analysis_record(dataset_id, analysis_record_id)
+    except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),

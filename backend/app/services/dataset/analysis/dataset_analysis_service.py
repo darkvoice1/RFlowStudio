@@ -1,9 +1,15 @@
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
-from app.core.exceptions import DatasetAnalysisError
+from app.core.exceptions import DatasetAnalysisError, DatasetAnalysisRecordNotFoundError
+from app.db.session import session_scope
+from app.models.dataset import DatasetAnalysisRecordModel
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
     DatasetAnalysisPreparedRequest,
+    DatasetAnalysisRecord,
+    DatasetAnalysisRecordListResponse,
     DatasetAnalysisResult,
 )
 from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
@@ -17,7 +23,7 @@ from app.services.dataset.dataset_reader_service import DatasetReaderService
 
 
 class DatasetAnalysisService:
-    """负责统计分析任务的统一校验和结果骨架构建。"""
+    """负责统计分析任务的校验、执行准备和历史记录持久化。"""
 
     def __init__(self) -> None:
         """初始化统计分析服务依赖的读取器。"""
@@ -87,6 +93,59 @@ class DatasetAnalysisService:
             rows=rows,
             raw_row_count=len(raw_rows),
         )
+
+    def save_analysis_record(
+        self,
+        dataset_id: str,
+        task_id: str,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        result: DatasetAnalysisResult,
+    ) -> DatasetAnalysisRecord:
+        """把一次已完成的统计分析结果持久化保存到数据库。"""
+        analysis_record = DatasetAnalysisRecord(
+            id=uuid4().hex,
+            dataset_id=dataset_id,
+            task_id=task_id,
+            analysis_type=prepared_request.analysis_type,
+            variables=list(prepared_request.variables),
+            group_variable=prepared_request.group_variable,
+            options=dict(prepared_request.options),
+            result=result,
+            created_at=datetime.now(UTC),
+        )
+
+        with session_scope() as session:
+            session.add(self._to_analysis_record_model(analysis_record))
+
+        return analysis_record
+
+    def list_analysis_records(self, dataset_id: str) -> DatasetAnalysisRecordListResponse:
+        """返回指定数据集当前已保存的统计分析历史记录。"""
+        with session_scope() as session:
+            record_models = session.query(DatasetAnalysisRecordModel).filter(
+                DatasetAnalysisRecordModel.dataset_id == dataset_id
+            ).order_by(DatasetAnalysisRecordModel.created_at.desc()).all()
+
+        analysis_records = [self._to_analysis_record(model) for model in record_models]
+        return DatasetAnalysisRecordListResponse(
+            dataset_id=dataset_id,
+            items=analysis_records,
+            total=len(analysis_records),
+        )
+
+    def get_analysis_record(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> DatasetAnalysisRecord:
+        """按历史记录 ID 返回指定数据集的一条统计分析记录。"""
+        with session_scope() as session:
+            record_model = session.get(DatasetAnalysisRecordModel, analysis_record_id)
+
+        if record_model is None or record_model.dataset_id != dataset_id:
+            raise DatasetAnalysisRecordNotFoundError("请求的统计分析历史记录不存在。")
+
+        return self._to_analysis_record(record_model)
 
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
         """整理变量列表，去掉空值并保留用户给出的顺序。"""
@@ -162,3 +221,37 @@ class DatasetAnalysisService:
         if missing_columns:
             joined_columns = "、".join(missing_columns)
             raise DatasetAnalysisError(f"统计分析请求包含不存在的字段：{joined_columns}。")
+
+    def _to_analysis_record_model(
+        self,
+        analysis_record: DatasetAnalysisRecord,
+    ) -> DatasetAnalysisRecordModel:
+        """把分析历史记录响应结构转成数据库模型。"""
+        return DatasetAnalysisRecordModel(
+            id=analysis_record.id,
+            dataset_id=analysis_record.dataset_id,
+            task_id=analysis_record.task_id,
+            analysis_type=analysis_record.analysis_type,
+            variables=list(analysis_record.variables),
+            group_variable=analysis_record.group_variable,
+            options=dict(analysis_record.options),
+            result=analysis_record.result.model_dump(mode="json"),
+            created_at=analysis_record.created_at,
+        )
+
+    def _to_analysis_record(
+        self,
+        model: DatasetAnalysisRecordModel,
+    ) -> DatasetAnalysisRecord:
+        """把数据库模型转成分析历史记录响应结构。"""
+        return DatasetAnalysisRecord(
+            id=model.id,
+            dataset_id=model.dataset_id,
+            task_id=model.task_id,
+            analysis_type=model.analysis_type,  # type: ignore[arg-type]
+            variables=list(model.variables),
+            group_variable=model.group_variable,
+            options=dict(model.options),
+            result=DatasetAnalysisResult.model_validate(model.result),
+            created_at=model.created_at,
+        )

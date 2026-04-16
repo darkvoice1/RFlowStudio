@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -75,3 +76,25 @@ class DatasetAnalysisResult(BaseModel):
     tables: list[DatasetAnalysisTable] = Field(default_factory=list)
     plots: list[DatasetAnalysisPlot] = Field(default_factory=list)
     interpretations: list[str] = Field(default_factory=list)
+
+
+class DatasetAnalysisRecord(BaseModel):
+    """定义单条统计分析历史记录的响应结构。"""
+
+    id: str
+    dataset_id: str
+    task_id: str | None = None
+    analysis_type: DatasetAnalysisType
+    variables: list[str] = Field(default_factory=list)
+    group_variable: str | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
+    result: DatasetAnalysisResult
+    created_at: datetime
+
+
+class DatasetAnalysisRecordListResponse(BaseModel):
+    """定义统计分析历史记录列表接口的响应结构。"""
+
+    dataset_id: str
+    items: list[DatasetAnalysisRecord] = Field(default_factory=list)
+    total: int

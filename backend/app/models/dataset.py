@@ -52,3 +52,24 @@ class DatasetCleaningStepModel(Base):
     order: Mapped[int] = mapped_column("step_order", Integer, nullable=False)
     parameters: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class DatasetAnalysisRecordModel(Base):
+    """定义数据集统计分析历史记录表。"""
+
+    __tablename__ = "dataset_analysis_records"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("dataset_records.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    task_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    analysis_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    variables: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    group_variable: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    options: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

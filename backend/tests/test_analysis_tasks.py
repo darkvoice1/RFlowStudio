@@ -501,6 +501,94 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert final_payload["result"]["plots"][0]["plot_type"] == "histogram"
     assert "均值为 91" in final_payload["result"]["interpretations"][0]
 
+    history_response = client.get(f"/api/v1/datasets/{dataset_id}/analysis-records")
+    history_payload = history_response.json()
+
+    assert history_response.status_code == 200
+    assert history_payload["dataset_id"] == dataset_id
+    assert history_payload["total"] == 1
+    assert history_payload["items"][0]["analysis_type"] == "descriptive_statistics"
+    assert history_payload["items"][0]["variables"] == ["score"]
+    assert history_payload["items"][0]["task_id"] == create_payload["id"]
+    assert history_payload["items"][0]["result"]["summary"]["title"] == "描述统计"
+
+
+def test_rerun_dataset_analysis_record_creates_new_analysis_task() -> None:
+    """验证可以基于历史分析记录重新创建一次新的统计分析任务。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,95,A\n2,88,B\n3,90,A\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "descriptive_statistics",
+            "variables": ["score"],
+            "options": {},
+        },
+    )
+    first_task_id = create_response.json()["id"]
+
+    first_final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{first_task_id}")
+        first_final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if first_final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert first_final_payload is not None
+    assert first_final_payload["status"] == "completed"
+
+    history_response = client.get(f"/api/v1/datasets/{dataset_id}/analysis-records")
+    history_payload = history_response.json()
+    analysis_record_id = history_payload["items"][0]["id"]
+
+    rerun_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/rerun"
+    )
+    rerun_payload = rerun_response.json()
+
+    assert rerun_response.status_code == 202
+    assert rerun_payload["task_type"] == "dataset_analysis"
+    assert rerun_payload["dataset_id"] == dataset_id
+    assert rerun_payload["id"] != first_task_id
+
+    rerun_final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{rerun_payload['id']}")
+        rerun_final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if rerun_final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert rerun_final_payload is not None
+    assert rerun_final_payload["status"] == "completed"
+    assert rerun_final_payload["result"]["analysis_type"] == "descriptive_statistics"
+    assert rerun_final_payload["result"]["tables"][0]["rows"][0]["mean"] == 91
+
+    rerun_history_response = client.get(f"/api/v1/datasets/{dataset_id}/analysis-records")
+    rerun_history_payload = rerun_history_response.json()
+
+    assert rerun_history_response.status_code == 200
+    assert rerun_history_payload["total"] == 2
+    assert rerun_history_payload["items"][0]["task_id"] == rerun_payload["id"]
+    assert rerun_history_payload["items"][1]["task_id"] == first_task_id
+
 
 def test_create_dataset_analysis_job_applies_cleaning_steps_before_statistics() -> None:
     """验证描述统计会基于当前清洗步骤后的数据返回结果。"""
@@ -903,4 +991,38 @@ def test_create_dataset_analysis_job_returns_404_for_unknown_dataset() -> None:
     assert response.status_code == 404
     assert response.json() == {
         "detail": "请求的数据集不存在。"
+    }
+
+
+def test_list_dataset_analysis_records_returns_404_for_unknown_dataset() -> None:
+    """验证不存在的数据集不会返回分析历史记录列表。"""
+    response = client.get("/api/v1/datasets/not-found/analysis-records")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的数据集不存在。"
+    }
+
+
+def test_rerun_dataset_analysis_record_returns_404_for_unknown_record() -> None:
+    """验证不存在的历史分析记录不会触发重跑任务。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/rerun"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的统计分析历史记录不存在。"
     }

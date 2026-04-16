@@ -6,6 +6,7 @@ from fastapi import UploadFile
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
     DatasetAnalysisPreparedRequest,
+    DatasetAnalysisRecordListResponse,
 )
 from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
@@ -184,6 +185,27 @@ class DatasetService:
         worker.start()
         return task
 
+    def list_dataset_analysis_records(self, dataset_id: str) -> DatasetAnalysisRecordListResponse:
+        """返回指定数据集当前已保存的统计分析历史记录。"""
+        self.upload_service.load_record(dataset_id)
+        return self.analysis_service.list_analysis_records(dataset_id)
+
+    def rerun_dataset_analysis_record(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> TaskResponse:
+        """基于指定历史记录重新创建一次统计分析任务。"""
+        self.upload_service.load_record(dataset_id)
+        analysis_record = self.analysis_service.get_analysis_record(dataset_id, analysis_record_id)
+        payload = DatasetAnalysisCreateRequest(
+            analysis_type=analysis_record.analysis_type,
+            variables=list(analysis_record.variables),
+            group_variable=analysis_record.group_variable,
+            options=dict(analysis_record.options),
+        )
+        return self.create_dataset_analysis_task(dataset_id, payload)
+
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""
         try:
@@ -216,6 +238,12 @@ class DatasetService:
                 data_file_path=data_file_path,
                 prepared_request=prepared_request,
                 cleaning_steps=cleaning_steps,
+            )
+            self.analysis_service.save_analysis_record(
+                dataset_id=record.id,
+                task_id=task_id,
+                prepared_request=prepared_request,
+                result=result,
             )
             task_service.mark_completed(task_id, result.model_dump(mode="json"))
         except Exception as exc:
