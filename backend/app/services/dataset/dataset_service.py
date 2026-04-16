@@ -226,6 +226,15 @@ class DatasetService:
         self.upload_service.load_record(dataset_id)
         return self.analysis_service.get_analysis_report_draft(dataset_id, analysis_record_id)
 
+    def get_dataset_analysis_report_html(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> str:
+        """返回指定统计分析历史记录对应的中文 HTML 报告。"""
+        self.upload_service.load_record(dataset_id)
+        return self.analysis_service.get_analysis_report_html(dataset_id, analysis_record_id)
+
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""
         try:

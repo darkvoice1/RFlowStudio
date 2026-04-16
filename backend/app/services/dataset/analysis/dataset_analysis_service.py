@@ -194,6 +194,15 @@ class DatasetAnalysisService:
         analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
         return self.report_service.build_report_draft(analysis_record)
 
+    def get_analysis_report_html(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> str:
+        """返回指定统计分析历史记录对应的中文 HTML 报告。"""
+        analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
+        return self.report_service.build_report_html(analysis_record)
+
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
         """整理变量列表，去掉空值并保留用户给出的顺序。"""
         normalized_variables: list[str] = []

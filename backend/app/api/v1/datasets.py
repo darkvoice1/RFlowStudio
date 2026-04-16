@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import HTMLResponse
 
 from app.core.config import settings
 from app.core.exceptions import (
@@ -228,6 +229,26 @@ def get_dataset_analysis_report_draft(
     """返回一条统计分析历史记录对应的中文报告草稿。"""
     try:
         return dataset_service.get_dataset_analysis_report_draft(dataset_id, analysis_record_id)
+    except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/analysis-records/{analysis_record_id}/report-html",
+    response_class=HTMLResponse,
+    summary="Get dataset analysis report html",
+)
+def get_dataset_analysis_report_html(
+    dataset_id: str,
+    analysis_record_id: str,
+) -> HTMLResponse:
+    """返回一条统计分析历史记录对应的中文 HTML 报告。"""
+    try:
+        html = dataset_service.get_dataset_analysis_report_html(dataset_id, analysis_record_id)
+        return HTMLResponse(content=html)
     except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

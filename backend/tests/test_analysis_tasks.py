@@ -713,6 +713,60 @@ def test_get_dataset_analysis_report_draft_returns_structured_sections() -> None
     assert report_payload["sections"][5]["content"]["script"] is not None
 
 
+def test_get_dataset_analysis_report_html_returns_html_document() -> None:
+    """验证可以按分析记录读取中文 HTML 报告。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "descriptive_statistics",
+            "variables": ["score"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    analysis_record_id = final_payload["result"]["analysis_record_id"]
+
+    report_response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/report-html"
+    )
+    report_html = report_response.text
+
+    assert report_response.status_code == 200
+    assert report_response.headers["content-type"].startswith("text/html")
+    assert "<!DOCTYPE html>" in report_html
+    assert "<html lang=\"zh-CN\">" in report_html
+    assert "描述统计报告" in report_html
+    assert "一、数据与分析概览" in report_html
+    assert "四、结果表" in report_html
+    assert "六、复现脚本" in report_html
+    assert "descriptive_result" in report_html
+
+
 def test_get_dataset_analysis_script_returns_404_for_unknown_dataset() -> None:
     """验证不存在的数据集不能返回伪造的统计分析脚本。"""
     response = client.get("/api/v1/datasets/not-found/analysis-records/record-1/script")
@@ -773,6 +827,40 @@ def test_get_dataset_analysis_report_draft_returns_404_for_unknown_record() -> N
 
     response = client.get(
         f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/report-draft"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的统计分析历史记录不存在。"
+    }
+
+
+def test_get_dataset_analysis_report_html_returns_404_for_unknown_dataset() -> None:
+    """验证不存在的数据集不能返回伪造的 HTML 报告。"""
+    response = client.get("/api/v1/datasets/not-found/analysis-records/record-1/report-html")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的数据集不存在。"
+    }
+
+
+def test_get_dataset_analysis_report_html_returns_404_for_unknown_record() -> None:
+    """验证不存在的分析记录不会返回 HTML 报告。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/report-html"
     )
 
     assert response.status_code == 404
