@@ -654,6 +654,65 @@ def test_get_dataset_analysis_script_returns_saved_complete_script() -> None:
     assert "analysis_data <- cleaned_data" in script_payload["script"]
 
 
+def test_get_dataset_analysis_report_draft_returns_structured_sections() -> None:
+    """验证可以按分析记录读取中文报告草稿结构。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "descriptive_statistics",
+            "variables": ["score"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    analysis_record_id = final_payload["result"]["analysis_record_id"]
+
+    report_response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/report-draft"
+    )
+    report_payload = report_response.json()
+
+    assert report_response.status_code == 200
+    assert report_payload["dataset_id"] == dataset_id
+    assert report_payload["analysis_record_id"] == analysis_record_id
+    assert report_payload["analysis_type"] == "descriptive_statistics"
+    assert report_payload["title"] == "描述统计报告"
+    assert report_payload["supported_export_formats"] == ["html"]
+    assert len(report_payload["sections"]) == 6
+    assert report_payload["sections"][0]["key"] == "dataset_overview"
+    assert report_payload["sections"][1]["key"] == "analysis_summary"
+    assert report_payload["sections"][2]["key"] == "interpretations"
+    assert report_payload["sections"][3]["key"] == "result_tables"
+    assert report_payload["sections"][4]["key"] == "result_plots"
+    assert report_payload["sections"][5]["key"] == "reproducible_script"
+    assert report_payload["sections"][5]["content"]["script"] is not None
+
+
 def test_get_dataset_analysis_script_returns_404_for_unknown_dataset() -> None:
     """验证不存在的数据集不能返回伪造的统计分析脚本。"""
     response = client.get("/api/v1/datasets/not-found/analysis-records/record-1/script")
@@ -680,6 +739,40 @@ def test_get_dataset_analysis_script_returns_404_for_unknown_record() -> None:
 
     response = client.get(
         f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/script"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的统计分析历史记录不存在。"
+    }
+
+
+def test_get_dataset_analysis_report_draft_returns_404_for_unknown_dataset() -> None:
+    """验证不存在的数据集不能返回伪造的报告草稿。"""
+    response = client.get("/api/v1/datasets/not-found/analysis-records/record-1/report-draft")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的数据集不存在。"
+    }
+
+
+def test_get_dataset_analysis_report_draft_returns_404_for_unknown_record() -> None:
+    """验证不存在的分析记录不会返回报告草稿。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/report-draft"
     )
 
     assert response.status_code == 404

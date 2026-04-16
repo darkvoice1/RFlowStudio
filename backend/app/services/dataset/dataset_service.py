@@ -7,6 +7,7 @@ from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
     DatasetAnalysisPreparedRequest,
     DatasetAnalysisRecordListResponse,
+    DatasetAnalysisReportDraftResponse,
     DatasetAnalysisScriptResponse,
 )
 from app.schemas.dataset import (
@@ -215,6 +216,15 @@ class DatasetService:
         """返回指定统计分析历史记录对应的完整脚本。"""
         self.upload_service.load_record(dataset_id)
         return self.analysis_service.get_analysis_script(dataset_id, analysis_record_id)
+
+    def get_dataset_analysis_report_draft(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> DatasetAnalysisReportDraftResponse:
+        """返回指定统计分析历史记录对应的中文报告草稿。"""
+        self.upload_service.load_record(dataset_id)
+        return self.analysis_service.get_analysis_report_draft(dataset_id, analysis_record_id)
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""

@@ -12,6 +12,7 @@ from app.core.exceptions import (
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
     DatasetAnalysisRecordListResponse,
+    DatasetAnalysisReportDraftResponse,
     DatasetAnalysisScriptResponse,
 )
 from app.schemas.dataset import (
@@ -208,6 +209,25 @@ def get_dataset_analysis_script(
     """返回一条统计分析历史记录对应的完整脚本。"""
     try:
         return dataset_service.get_dataset_analysis_script(dataset_id, analysis_record_id)
+    except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/analysis-records/{analysis_record_id}/report-draft",
+    response_model=DatasetAnalysisReportDraftResponse,
+    summary="Get dataset analysis report draft",
+)
+def get_dataset_analysis_report_draft(
+    dataset_id: str,
+    analysis_record_id: str,
+) -> DatasetAnalysisReportDraftResponse:
+    """返回一条统计分析历史记录对应的中文报告草稿。"""
+    try:
+        return dataset_service.get_dataset_analysis_report_draft(dataset_id, analysis_record_id)
     except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

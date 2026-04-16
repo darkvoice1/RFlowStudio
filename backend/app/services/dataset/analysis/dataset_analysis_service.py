@@ -10,6 +10,7 @@ from app.schemas.analysis import (
     DatasetAnalysisPreparedRequest,
     DatasetAnalysisRecord,
     DatasetAnalysisRecordListResponse,
+    DatasetAnalysisReportDraftResponse,
     DatasetAnalysisResult,
     DatasetAnalysisScriptResponse,
 )
@@ -19,6 +20,9 @@ from app.services.dataset.analysis.dataset_analysis_execution_service import (
 )
 from app.services.dataset.analysis.dataset_analysis_r_script_service import (
     DatasetAnalysisRScriptService,
+)
+from app.services.dataset.analysis.dataset_analysis_report_service import (
+    DatasetAnalysisReportService,
 )
 from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
     DatasetCleaningExecuteService,
@@ -39,6 +43,7 @@ class DatasetAnalysisService:
         self.execution_service = DatasetAnalysisExecutionService()
         self.r_script_service = DatasetAnalysisRScriptService()
         self.cleaning_r_script_service = DatasetCleaningRScriptService()
+        self.report_service = DatasetAnalysisReportService()
 
     def prepare_request(
         self,
@@ -179,6 +184,15 @@ class DatasetAnalysisService:
             file_name=analysis_record.result.file_name,
             script=script,
         )
+
+    def get_analysis_report_draft(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> DatasetAnalysisReportDraftResponse:
+        """返回指定统计分析历史记录对应的中文报告草稿结构。"""
+        analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
+        return self.report_service.build_report_draft(analysis_record)
 
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
         """整理变量列表，去掉空值并保留用户给出的顺序。"""

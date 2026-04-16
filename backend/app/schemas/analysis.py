@@ -110,3 +110,25 @@ class DatasetAnalysisScriptResponse(BaseModel):
     analysis_type: DatasetAnalysisType
     file_name: str
     script: str
+
+
+class DatasetAnalysisReportSection(BaseModel):
+    """定义中文分析报告中的单个区块结构。"""
+
+    key: str
+    title: str
+    section_type: Literal["summary", "text", "table", "plot_list", "script"]
+    content: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetAnalysisReportDraftResponse(BaseModel):
+    """定义统计分析报告草稿接口的响应结构。"""
+
+    dataset_id: str
+    analysis_record_id: str
+    analysis_type: DatasetAnalysisType
+    title: str
+    file_name: str
+    generated_at: datetime
+    supported_export_formats: list[Literal["html"]] = Field(default_factory=lambda: ["html"])
+    sections: list[DatasetAnalysisReportSection] = Field(default_factory=list)
