@@ -15,12 +15,16 @@ def isolate_storage(tmp_path: Path) -> None:
     original_dataset_metadata_root = settings.dataset_metadata_root
     original_database_driver = settings.database_driver
     original_database_name = settings.database_name
+    original_r_analysis_service_url = settings.r_analysis_service_url
+    original_r_analysis_timeout_seconds = settings.r_analysis_timeout_seconds
 
     settings.storage_root = tmp_path / "storage"
     settings.upload_root = settings.storage_root / "uploads"
     settings.dataset_metadata_root = settings.storage_root / "datasets"
     settings.database_driver = "sqlite+pysqlite"
     settings.database_name = (tmp_path / "test.db").as_posix()
+    settings.r_analysis_service_url = "http://127.0.0.1:8090"
+    settings.r_analysis_timeout_seconds = 30
 
     # 每个测试开始前都创建独立目录，保证断言结果可预测。
     settings.storage_root.mkdir(parents=True, exist_ok=True)
@@ -38,5 +42,7 @@ def isolate_storage(tmp_path: Path) -> None:
         settings.dataset_metadata_root = original_dataset_metadata_root
         settings.database_driver = original_database_driver
         settings.database_name = original_database_name
+        settings.r_analysis_service_url = original_r_analysis_service_url
+        settings.r_analysis_timeout_seconds = original_r_analysis_timeout_seconds
         dispose_database_engine()
         task_service.reset()

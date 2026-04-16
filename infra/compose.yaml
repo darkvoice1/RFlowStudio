@@ -1,3 +1,5 @@
+name: rflowstudio
+
 services:
   postgres:
     # 当前 MVP 阶段先只编排 PostgreSQL，供后端元信息存储使用。
@@ -22,6 +24,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  r-analysis:
+    # 独立 R 统计服务，供本机后端通过 HTTP 调用。
+    build:
+      context: ..
+      dockerfile: infra/r-analysis/Dockerfile
+    container_name: open-r-platform-r-analysis
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
 
 volumes:
   # 单独声明命名卷，便于项目级管理和后续清理。

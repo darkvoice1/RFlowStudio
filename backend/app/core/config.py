@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     database_name: str = "rflowstudio"
     database_user: str = "postgres"
     database_password: str = "postgres"
+    r_analysis_service_url: str = "http://127.0.0.1:8090"
+    r_analysis_timeout_seconds: int = 30
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

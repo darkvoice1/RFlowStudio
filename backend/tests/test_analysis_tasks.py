@@ -1,11 +1,451 @@
 import time
 from io import BytesIO
+from math import erfc, sqrt
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import DatasetAnalysisError
 from app.main import app
+from app.schemas.analysis import DatasetAnalysisPreparedRequest, DatasetAnalysisResult
+from app.services.dataset.analysis.dataset_analysis_r_execution_service import (
+    DatasetAnalysisRExecutionService,
+)
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def patch_r_analysis_execution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试环境统一模拟 R 执行结果，避免依赖本机真实 R 运行时。"""
+    def fake_is_available(self: DatasetAnalysisRExecutionService) -> bool:
+        return True
+
+    def fake_build_result(
+        self: DatasetAnalysisRExecutionService,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        columns: list[str],
+        rows: list[dict[str, str | None]],
+        raw_row_count: int,
+    ) -> DatasetAnalysisResult:
+        return _build_fake_r_analysis_result(
+            prepared_request=prepared_request,
+            rows=rows,
+            raw_row_count=raw_row_count,
+        )
+
+    monkeypatch.setattr(DatasetAnalysisRExecutionService, "is_available", fake_is_available)
+    monkeypatch.setattr(DatasetAnalysisRExecutionService, "build_result", fake_build_result)
+
+
+def _round_value(value: float) -> int | float:
+    rounded = round(value, 4)
+    if abs(rounded - round(rounded)) < 1e-9:
+        return int(round(rounded))
+    return rounded
+
+
+def _parse_numeric_value(raw_value: str | None, column: str) -> float | None:
+    if raw_value is None or not raw_value.strip():
+        return None
+
+    try:
+        return float(raw_value)
+    except ValueError as exc:
+        raise DatasetAnalysisError(f"相关分析当前仅支持数值型字段：{column}。") from exc
+
+
+def _build_fake_r_analysis_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    if prepared_request.analysis_type == "descriptive_statistics":
+        return _build_fake_descriptive_result(prepared_request, rows, raw_row_count)
+    if prepared_request.analysis_type == "correlation_analysis":
+        return _build_fake_correlation_result(prepared_request, rows, raw_row_count)
+    if prepared_request.analysis_type == "chi_square_test":
+        return _build_fake_chi_square_result(prepared_request, rows, raw_row_count)
+    if prepared_request.analysis_type == "independent_samples_t_test":
+        return _build_fake_t_test_result(prepared_request, rows, raw_row_count)
+    return _build_fake_anova_result(prepared_request, rows, raw_row_count)
+
+
+def _build_fake_descriptive_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    variable = prepared_request.variables[0]
+    values = [
+        float(row[variable])
+        for row in rows
+        if row.get(variable) is not None and str(row[variable]).strip()
+    ]
+    mean_value = _round_value(sum(values) / len(values))
+    effective_row_count = len(rows)
+    excluded_row_count = max(raw_row_count - effective_row_count, 0)
+    return DatasetAnalysisResult(
+        dataset_id=prepared_request.dataset_id,
+        dataset_name=prepared_request.dataset_name,
+        file_name=prepared_request.file_name,
+        analysis_type=prepared_request.analysis_type,
+        variables=prepared_request.variables,
+        group_variable=prepared_request.group_variable,
+        status="completed",
+        summary={
+            "title": "描述统计",
+            "analysis_type": prepared_request.analysis_type,
+            "effective_row_count": effective_row_count,
+            "excluded_row_count": excluded_row_count,
+            "missing_value_strategy": "测试环境模拟 R 执行结果。",
+        },
+        tables=[
+            {
+                "key": "descriptive_summary",
+                "title": "描述统计汇总",
+                "columns": ["variable", "mean"],
+                "rows": [{"variable": variable, "mean": mean_value}],
+            }
+        ],
+        plots=[
+            {
+                "key": f"{variable}_histogram",
+                "title": f"{variable} 直方图",
+                "plot_type": "histogram",
+                "spec": {},
+            }
+        ],
+        interpretations=[f"字段 {variable} 的均值为 {mean_value}。"],
+    )
+
+
+def _build_fake_correlation_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    left, right = prepared_request.variables
+    x_values: list[float] = []
+    y_values: list[float] = []
+    for row in rows:
+        left_value = _parse_numeric_value(row.get(left), left)
+        right_value = _parse_numeric_value(row.get(right), right)
+        if left_value is None or right_value is None:
+            continue
+        x_values.append(left_value)
+        y_values.append(right_value)
+
+    pair_count = len(x_values)
+    x_mean = sum(x_values) / pair_count
+    y_mean = sum(y_values) / pair_count
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_values, y_values))
+    denominator = sqrt(
+        sum((x - x_mean) ** 2 for x in x_values)
+        * sum((y - y_mean) ** 2 for y in y_values)
+    )
+    correlation_value = 0.0 if denominator == 0 else numerator / denominator
+    rounded_correlation = _round_value(correlation_value)
+    effective_row_count = len(rows)
+    excluded_row_count = max(raw_row_count - effective_row_count, 0)
+    return DatasetAnalysisResult(
+        dataset_id=prepared_request.dataset_id,
+        dataset_name=prepared_request.dataset_name,
+        file_name=prepared_request.file_name,
+        analysis_type=prepared_request.analysis_type,
+        variables=prepared_request.variables,
+        group_variable=prepared_request.group_variable,
+        status="completed",
+        summary={
+            "title": "相关分析",
+            "analysis_type": prepared_request.analysis_type,
+            "effective_row_count": effective_row_count,
+            "excluded_row_count": excluded_row_count,
+            "missing_value_strategy": "测试环境模拟 R 执行结果。",
+        },
+        tables=[
+            {
+                "key": "correlation_matrix",
+                "title": "相关系数矩阵",
+                "columns": ["variable", left, right],
+                "rows": [
+                    {"variable": left, left: 1, right: rounded_correlation},
+                    {"variable": right, left: rounded_correlation, right: 1},
+                ],
+            },
+            {
+                "key": "correlation_pair_counts",
+                "title": "成对样本量矩阵",
+                "columns": ["variable", left, right],
+                "rows": [
+                    {"variable": left, left: None, right: pair_count},
+                    {"variable": right, left: pair_count, right: None},
+                ],
+            },
+            {
+                "key": "correlation_pairs",
+                "title": "字段对相关结果",
+                "columns": ["variable_x", "variable_y", "pair_count", "correlation"],
+                "rows": [
+                    {
+                        "variable_x": left,
+                        "variable_y": right,
+                        "pair_count": pair_count,
+                        "correlation": rounded_correlation,
+                    }
+                ],
+            },
+        ],
+        plots=[
+            {
+                "key": "correlation_heatmap",
+                "title": "相关系数热力图",
+                "plot_type": "heatmap",
+                "spec": {},
+            }
+        ],
+        interpretations=[f"字段 {left} 与 {right} 的皮尔逊相关系数 {rounded_correlation}。"],
+    )
+
+
+def _build_fake_chi_square_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    left, right = prepared_request.variables
+    left_levels = sorted({row[left] for row in rows if row.get(left) is not None})
+    right_levels = sorted({row[right] for row in rows if row.get(right) is not None})
+    observed: dict[str, dict[str, int]] = {
+        left_level: {right_level: 0 for right_level in right_levels}
+        for left_level in left_levels
+    }
+    for row in rows:
+        observed[row[left]][row[right]] += 1
+
+    row_totals = {left_level: sum(observed[left_level].values()) for left_level in left_levels}
+    column_totals = {
+        right_level: sum(observed[left_level][right_level] for left_level in left_levels)
+        for right_level in right_levels
+    }
+    total = len(rows)
+    chi_square = 0.0
+    for left_level in left_levels:
+        for right_level in right_levels:
+            expected = row_totals[left_level] * column_totals[right_level] / total
+            chi_square += ((observed[left_level][right_level] - expected) ** 2) / expected
+
+    rounded_chi_square = _round_value(chi_square)
+    p_value = erfc(sqrt(chi_square / 2))
+    return DatasetAnalysisResult(
+        dataset_id=prepared_request.dataset_id,
+        dataset_name=prepared_request.dataset_name,
+        file_name=prepared_request.file_name,
+        analysis_type=prepared_request.analysis_type,
+        variables=prepared_request.variables,
+        group_variable=prepared_request.group_variable,
+        status="completed",
+        summary={
+            "title": "卡方检验",
+            "analysis_type": prepared_request.analysis_type,
+            "effective_row_count": len(rows),
+            "excluded_row_count": max(raw_row_count - len(rows), 0),
+            "missing_value_strategy": "测试环境模拟 R 执行结果。",
+        },
+        tables=[
+            {
+                "key": "chi_square_observed",
+                "title": "列联表（观测频数）",
+                "columns": ["variable", *right_levels],
+                "rows": [
+                    {"variable": left_level, **observed[left_level]}
+                    for left_level in left_levels
+                ],
+            },
+            {
+                "key": "chi_square_expected",
+                "title": "列联表（期望频数）",
+                "columns": ["variable", *right_levels],
+                "rows": [],
+            },
+            {
+                "key": "chi_square_summary",
+                "title": "卡方检验汇总",
+                "columns": ["chi_square", "degrees_of_freedom", "p_value"],
+                "rows": [
+                    {
+                        "chi_square": rounded_chi_square,
+                        "degrees_of_freedom": (len(left_levels) - 1) * (len(right_levels) - 1),
+                        "p_value": _round_value(p_value),
+                    }
+                ],
+            },
+        ],
+        plots=[
+            {
+                "key": "chi_square_grouped_bar",
+                "title": "分组条形图",
+                "plot_type": "grouped_bar_chart",
+                "spec": {},
+            }
+        ],
+        interpretations=[f"卡方统计量为 {rounded_chi_square}。"],
+    )
+
+
+def _build_fake_t_test_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    target = prepared_request.variables[0]
+    group = prepared_request.group_variable or ""
+    grouped_values: dict[str, list[float]] = {}
+    for row in rows:
+        grouped_values.setdefault(row[group] or "", []).append(float(row[target] or 0))
+
+    group_names = sorted(grouped_values)
+    left_values = grouped_values[group_names[0]]
+    right_values = grouped_values[group_names[1]]
+    left_mean = sum(left_values) / len(left_values)
+    right_mean = sum(right_values) / len(right_values)
+    left_variance = sum((value - left_mean) ** 2 for value in left_values) / (
+        len(left_values) - 1
+    )
+    right_variance = sum((value - right_mean) ** 2 for value in right_values) / (
+        len(right_values) - 1
+    )
+    degrees_of_freedom = len(left_values) + len(right_values) - 2
+    pooled_variance = (
+        ((len(left_values) - 1) * left_variance) + ((len(right_values) - 1) * right_variance)
+    ) / degrees_of_freedom
+    t_statistic = (left_mean - right_mean) / sqrt(
+        pooled_variance * ((1 / len(left_values)) + (1 / len(right_values)))
+    )
+    rounded_t_statistic = _round_value(t_statistic)
+    p_value = 1 - abs(t_statistic) / sqrt((t_statistic**2) + degrees_of_freedom)
+    return DatasetAnalysisResult(
+        dataset_id=prepared_request.dataset_id,
+        dataset_name=prepared_request.dataset_name,
+        file_name=prepared_request.file_name,
+        analysis_type=prepared_request.analysis_type,
+        variables=prepared_request.variables,
+        group_variable=prepared_request.group_variable,
+        status="completed",
+        summary={
+            "title": "独立样本 t 检验",
+            "analysis_type": prepared_request.analysis_type,
+            "effective_row_count": len(rows),
+            "excluded_row_count": max(raw_row_count - len(rows), 0),
+            "missing_value_strategy": "测试环境模拟 R 执行结果。",
+        },
+        tables=[
+            {
+                "key": "t_test_group_summary",
+                "title": "分组样本汇总",
+                "columns": ["group", "count"],
+                "rows": [
+                    {"group": name, "count": len(grouped_values[name])}
+                    for name in group_names
+                ],
+            },
+            {
+                "key": "t_test_result",
+                "title": "独立样本 t 检验结果",
+                "columns": ["t_statistic", "degrees_of_freedom", "p_value"],
+                "rows": [
+                    {
+                        "t_statistic": rounded_t_statistic,
+                        "degrees_of_freedom": degrees_of_freedom,
+                        "p_value": _round_value(p_value),
+                    }
+                ],
+            },
+        ],
+        plots=[
+            {
+                "key": "t_test_boxplot",
+                "title": "分组箱线图",
+                "plot_type": "grouped_boxplot",
+                "spec": {},
+            }
+        ],
+        interpretations=[f"t 统计量为 {rounded_t_statistic}。"],
+    )
+
+
+def _build_fake_anova_result(
+    prepared_request: DatasetAnalysisPreparedRequest,
+    rows: list[dict[str, str | None]],
+    raw_row_count: int,
+) -> DatasetAnalysisResult:
+    target = prepared_request.variables[0]
+    group = prepared_request.group_variable or ""
+    grouped_values: dict[str, list[float]] = {}
+    for row in rows:
+        grouped_values.setdefault(row[group] or "", []).append(float(row[target] or 0))
+
+    all_values = [value for values in grouped_values.values() for value in values]
+    grand_mean = sum(all_values) / len(all_values)
+    ss_between = sum(
+        len(values) * ((sum(values) / len(values)) - grand_mean) ** 2
+        for values in grouped_values.values()
+    )
+    ss_within = sum(
+        sum((value - (sum(values) / len(values))) ** 2 for value in values)
+        for values in grouped_values.values()
+    )
+    df_between = len(grouped_values) - 1
+    df_within = len(all_values) - len(grouped_values)
+    f_value = (ss_between / df_between) / (ss_within / df_within)
+    return DatasetAnalysisResult(
+        dataset_id=prepared_request.dataset_id,
+        dataset_name=prepared_request.dataset_name,
+        file_name=prepared_request.file_name,
+        analysis_type=prepared_request.analysis_type,
+        variables=prepared_request.variables,
+        group_variable=prepared_request.group_variable,
+        status="completed",
+        summary={
+            "title": "单因素方差分析",
+            "analysis_type": prepared_request.analysis_type,
+            "effective_row_count": len(rows),
+            "excluded_row_count": max(raw_row_count - len(rows), 0),
+            "missing_value_strategy": "测试环境模拟 R 执行结果。",
+        },
+        tables=[
+            {
+                "key": "anova_group_summary",
+                "title": "分组样本汇总",
+                "columns": ["group", "count"],
+                "rows": [
+                    {"group": name, "count": len(values)}
+                    for name, values in grouped_values.items()
+                ],
+            },
+            {
+                "key": "anova_summary",
+                "title": "方差分析表",
+                "columns": ["f_value", "degrees_of_freedom", "p_value"],
+                "rows": [
+                    {
+                        "f_value": _round_value(f_value),
+                        "degrees_of_freedom": df_between,
+                        "p_value": 0.005,
+                    }
+                ],
+            },
+        ],
+        plots=[
+            {
+                "key": "anova_boxplot",
+                "title": "分组箱线图",
+                "plot_type": "grouped_boxplot",
+                "spec": {},
+            }
+        ],
+        interpretations=[f"F 统计量为 {_round_value(f_value)}。"],
+    )
 
 
 def test_create_dataset_analysis_job_and_poll_until_completed() -> None:

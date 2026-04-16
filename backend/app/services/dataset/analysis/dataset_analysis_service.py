@@ -3,27 +3,12 @@ from pathlib import Path
 from app.core.exceptions import DatasetAnalysisError
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
-    DatasetAnalysisPlot,
     DatasetAnalysisPreparedRequest,
     DatasetAnalysisResult,
-    DatasetAnalysisSummary,
-    DatasetAnalysisTable,
 )
 from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
-from app.services.dataset.analysis.dataset_anova_analysis_service import (
-    DatasetAnovaAnalysisService,
-)
-from app.services.dataset.analysis.dataset_chi_square_analysis_service import (
-    DatasetChiSquareAnalysisService,
-)
-from app.services.dataset.analysis.dataset_correlation_analysis_service import (
-    DatasetCorrelationAnalysisService,
-)
-from app.services.dataset.analysis.dataset_descriptive_statistics_service import (
-    DatasetDescriptiveStatisticsService,
-)
-from app.services.dataset.analysis.dataset_t_test_analysis_service import (
-    DatasetTTestAnalysisService,
+from app.services.dataset.analysis.dataset_analysis_execution_service import (
+    DatasetAnalysisExecutionService,
 )
 from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
     DatasetCleaningExecuteService,
@@ -38,11 +23,7 @@ class DatasetAnalysisService:
         """初始化统计分析服务依赖的读取器。"""
         self.reader_service = DatasetReaderService()
         self.cleaning_execute_service = DatasetCleaningExecuteService()
-        self.descriptive_statistics_service = DatasetDescriptiveStatisticsService()
-        self.correlation_analysis_service = DatasetCorrelationAnalysisService()
-        self.chi_square_analysis_service = DatasetChiSquareAnalysisService()
-        self.t_test_analysis_service = DatasetTTestAnalysisService()
-        self.anova_analysis_service = DatasetAnovaAnalysisService()
+        self.execution_service = DatasetAnalysisExecutionService()
 
     def prepare_request(
         self,
@@ -100,70 +81,11 @@ class DatasetAnalysisService:
             cleaning_steps=cleaning_steps,
         )
 
-        if prepared_request.analysis_type == "descriptive_statistics":
-            return self.descriptive_statistics_service.build_result(
-                prepared_request=prepared_request,
-                columns=columns,
-                rows=rows,
-                raw_row_count=len(raw_rows),
-            )
-
-        if prepared_request.analysis_type == "correlation_analysis":
-            return self.correlation_analysis_service.build_result(
-                prepared_request=prepared_request,
-                rows=rows,
-                raw_row_count=len(raw_rows),
-            )
-
-        if prepared_request.analysis_type == "chi_square_test":
-            return self.chi_square_analysis_service.build_result(
-                prepared_request=prepared_request,
-                rows=rows,
-                raw_row_count=len(raw_rows),
-            )
-
-        if prepared_request.analysis_type == "independent_samples_t_test":
-            return self.t_test_analysis_service.build_result(
-                prepared_request=prepared_request,
-                rows=rows,
-                raw_row_count=len(raw_rows),
-            )
-
-        if prepared_request.analysis_type == "one_way_anova":
-            return self.anova_analysis_service.build_result(
-                prepared_request=prepared_request,
-                rows=rows,
-                raw_row_count=len(raw_rows),
-            )
-
-        return self.build_result_skeleton(prepared_request)
-
-    def build_result_skeleton(
-        self,
-        prepared_request: DatasetAnalysisPreparedRequest,
-    ) -> DatasetAnalysisResult:
-        """构建统一的统计分析结果骨架，供后续具体分析方法复用。"""
-        analysis_title = self._get_analysis_title(prepared_request.analysis_type)
-        return DatasetAnalysisResult(
-            dataset_id=prepared_request.dataset_id,
-            dataset_name=prepared_request.dataset_name,
-            file_name=prepared_request.file_name,
-            analysis_type=prepared_request.analysis_type,
-            variables=prepared_request.variables,
-            group_variable=prepared_request.group_variable,
-            status="skeleton_ready",
-            summary=DatasetAnalysisSummary(
-                title=analysis_title,
-                analysis_type=prepared_request.analysis_type,
-                missing_value_strategy="沿用当前数据清洗步骤后的默认缺失值处理策略",
-                note="当前阶段已完成统计分析任务统一骨架，具体统计计算将在下一小步接入。",
-            ),
-            tables=self._build_skeleton_tables(),
-            plots=self._build_skeleton_plots(),
-            interpretations=[
-                "当前返回的是统一分析结果骨架，用于打通阶段四的任务链路。",
-                "后续接入具体统计方法后，会在同一结果结构中补齐摘要、表格和图形。",
-            ],
+        return self.execution_service.build_result(
+            prepared_request=prepared_request,
+            columns=columns,
+            rows=rows,
+            raw_row_count=len(raw_rows),
         )
 
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
@@ -240,37 +162,3 @@ class DatasetAnalysisService:
         if missing_columns:
             joined_columns = "、".join(missing_columns)
             raise DatasetAnalysisError(f"统计分析请求包含不存在的字段：{joined_columns}。")
-
-    def _get_analysis_title(self, analysis_type: str) -> str:
-        """把分析类型转换成更适合展示给用户的中文标题。"""
-        if analysis_type == "descriptive_statistics":
-            return "描述统计"
-        if analysis_type == "independent_samples_t_test":
-            return "独立样本 t 检验"
-        if analysis_type == "one_way_anova":
-            return "单因素方差分析"
-        if analysis_type == "chi_square_test":
-            return "卡方检验"
-        return "相关分析"
-
-    def _build_skeleton_tables(self) -> list[DatasetAnalysisTable]:
-        """生成未落地分析方法时的占位表格结构。"""
-        return [
-            DatasetAnalysisTable(
-                key="analysis_placeholder",
-                title="分析结果表格占位",
-                columns=[],
-                rows=[],
-            )
-        ]
-
-    def _build_skeleton_plots(self) -> list[DatasetAnalysisPlot]:
-        """生成未落地分析方法时的占位图形结构。"""
-        return [
-            DatasetAnalysisPlot(
-                key="analysis_placeholder_plot",
-                title="分析图形占位",
-                plot_type="placeholder",
-                spec={},
-            )
-        ]
