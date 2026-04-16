@@ -14,6 +14,7 @@ from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
     DatasetAnalysisRecordListResponse,
     DatasetAnalysisReportDraftResponse,
+    DatasetAnalysisReportTemplateKey,
     DatasetAnalysisScriptResponse,
 )
 from app.schemas.dataset import (
@@ -225,10 +226,18 @@ def get_dataset_analysis_script(
 def get_dataset_analysis_report_draft(
     dataset_id: str,
     analysis_record_id: str,
+    template_key: DatasetAnalysisReportTemplateKey = Query(
+        default="general",
+        description="报告模板类型。",
+    ),
 ) -> DatasetAnalysisReportDraftResponse:
     """返回一条统计分析历史记录对应的中文报告草稿。"""
     try:
-        return dataset_service.get_dataset_analysis_report_draft(dataset_id, analysis_record_id)
+        return dataset_service.get_dataset_analysis_report_draft(
+            dataset_id,
+            analysis_record_id,
+            template_key=template_key,
+        )
     except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -244,10 +253,18 @@ def get_dataset_analysis_report_draft(
 def get_dataset_analysis_report_html(
     dataset_id: str,
     analysis_record_id: str,
+    template_key: DatasetAnalysisReportTemplateKey = Query(
+        default="general",
+        description="报告模板类型。",
+    ),
 ) -> HTMLResponse:
     """返回一条统计分析历史记录对应的中文 HTML 报告。"""
     try:
-        html = dataset_service.get_dataset_analysis_report_html(dataset_id, analysis_record_id)
+        html = dataset_service.get_dataset_analysis_report_html(
+            dataset_id,
+            analysis_record_id,
+            template_key=template_key,
+        )
         return HTMLResponse(content=html)
     except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
         raise HTTPException(

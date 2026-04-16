@@ -11,6 +11,7 @@ from app.schemas.analysis import (
     DatasetAnalysisRecord,
     DatasetAnalysisRecordListResponse,
     DatasetAnalysisReportDraftResponse,
+    DatasetAnalysisReportTemplateKey,
     DatasetAnalysisResult,
     DatasetAnalysisScriptResponse,
 )
@@ -189,19 +190,27 @@ class DatasetAnalysisService:
         self,
         dataset_id: str,
         analysis_record_id: str,
+        template_key: DatasetAnalysisReportTemplateKey = "general",
     ) -> DatasetAnalysisReportDraftResponse:
         """返回指定统计分析历史记录对应的中文报告草稿结构。"""
         analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
-        return self.report_service.build_report_draft(analysis_record)
+        return self.report_service.build_report_draft(
+            analysis_record,
+            template_key=template_key,
+        )
 
     def get_analysis_report_html(
         self,
         dataset_id: str,
         analysis_record_id: str,
+        template_key: DatasetAnalysisReportTemplateKey = "general",
     ) -> str:
         """返回指定统计分析历史记录对应的中文 HTML 报告。"""
         analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
-        return self.report_service.build_report_html(analysis_record)
+        return self.report_service.build_report_html(
+            analysis_record,
+            template_key=template_key,
+        )
 
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
         """整理变量列表，去掉空值并保留用户给出的顺序。"""

@@ -455,7 +455,7 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
         files={
             "file": (
                 "survey.csv",
-                BytesIO(b"id,score,group\n1,95,A\n2,88,B\n3,90,A\n"),
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
                 "text/csv",
             )
         },
@@ -532,7 +532,7 @@ def test_rerun_dataset_analysis_record_creates_new_analysis_task() -> None:
         files={
             "file": (
                 "survey.csv",
-                BytesIO(b"id,score,group\n1,95,A\n2,88,B\n3,90,A\n"),
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
                 "text/csv",
             )
         },
@@ -701,16 +701,71 @@ def test_get_dataset_analysis_report_draft_returns_structured_sections() -> None
     assert report_payload["dataset_id"] == dataset_id
     assert report_payload["analysis_record_id"] == analysis_record_id
     assert report_payload["analysis_type"] == "descriptive_statistics"
-    assert report_payload["title"] == "描述统计报告"
+    assert report_payload["template_key"] == "general"
+    assert report_payload["title"] == "通用统计分析：描述统计报告"
     assert report_payload["supported_export_formats"] == ["html"]
-    assert len(report_payload["sections"]) == 6
-    assert report_payload["sections"][0]["key"] == "dataset_overview"
-    assert report_payload["sections"][1]["key"] == "analysis_summary"
-    assert report_payload["sections"][2]["key"] == "interpretations"
-    assert report_payload["sections"][3]["key"] == "result_tables"
-    assert report_payload["sections"][4]["key"] == "result_plots"
-    assert report_payload["sections"][5]["key"] == "reproducible_script"
-    assert report_payload["sections"][5]["content"]["script"] is not None
+    assert len(report_payload["available_templates"]) == 4
+    assert len(report_payload["sections"]) == 8
+    assert report_payload["sections"][0]["key"] == "template_intro"
+    assert report_payload["sections"][1]["key"] == "dataset_overview"
+    assert report_payload["sections"][2]["key"] == "analysis_summary"
+    assert report_payload["sections"][3]["key"] == "interpretations"
+    assert report_payload["sections"][4]["key"] == "result_tables"
+    assert report_payload["sections"][5]["key"] == "result_plots"
+    assert report_payload["sections"][6]["key"] == "reproducible_script"
+    assert report_payload["sections"][7]["key"] == "template_recommendations"
+    assert report_payload["sections"][6]["content"]["script"] is not None
+
+
+def test_get_dataset_analysis_report_draft_supports_questionnaire_template() -> None:
+    """验证报告草稿支持切换到问卷分析模板。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "descriptive_statistics",
+            "variables": ["score"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    analysis_record_id = final_payload["result"]["analysis_record_id"]
+
+    report_response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/report-draft",
+        params={"template_key": "questionnaire_analysis"},
+    )
+    report_payload = report_response.json()
+
+    assert report_response.status_code == 200
+    assert report_payload["template_key"] == "questionnaire_analysis"
+    assert report_payload["title"] == "问卷分析：描述统计报告"
+    assert report_payload["sections"][0]["title"] == "一、问卷分析说明"
+    assert report_payload["sections"][-1]["title"] == "八、问卷解读建议"
 
 
 def test_get_dataset_analysis_report_html_returns_html_document() -> None:
@@ -760,11 +815,62 @@ def test_get_dataset_analysis_report_html_returns_html_document() -> None:
     assert report_response.headers["content-type"].startswith("text/html")
     assert "<!DOCTYPE html>" in report_html
     assert "<html lang=\"zh-CN\">" in report_html
-    assert "描述统计报告" in report_html
-    assert "一、数据与分析概览" in report_html
-    assert "四、结果表" in report_html
-    assert "六、复现脚本" in report_html
+    assert "通用统计分析：描述统计报告" in report_html
+    assert "一、报告说明" in report_html
+    assert "五、结果表" in report_html
+    assert "七、复现脚本" in report_html
     assert "descriptive_result" in report_html
+
+
+def test_get_dataset_analysis_report_html_supports_group_comparison_template() -> None:
+    """验证 HTML 报告支持组间比较模板。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score,group\n1,95,A\n2,90,A\n3,88,B\n4,84,B\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "independent_samples_t_test",
+            "variables": ["score"],
+            "group_variable": "group",
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    analysis_record_id = final_payload["result"]["analysis_record_id"]
+
+    report_response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/report-html",
+        params={"template_key": "group_comparison"},
+    )
+    report_html = report_response.text
+
+    assert report_response.status_code == 200
+    assert "组间比较：独立样本 t 检验报告" in report_html
+    assert "一、组间比较说明" in report_html
+    assert "八、组间比较建议" in report_html
 
 
 def test_get_dataset_analysis_script_returns_404_for_unknown_dataset() -> None:

@@ -1,48 +1,151 @@
+from dataclasses import dataclass
 from html import escape
 
 from app.schemas.analysis import (
     DatasetAnalysisRecord,
     DatasetAnalysisReportDraftResponse,
     DatasetAnalysisReportSection,
+    DatasetAnalysisReportTemplateInfo,
+    DatasetAnalysisReportTemplateKey,
 )
+
+
+@dataclass(frozen=True)
+class ReportTemplateDefinition:
+    """定义单个中文报告模板的元信息。"""
+
+    key: DatasetAnalysisReportTemplateKey
+    name: str
+    description: str
+    title_prefix: str
+    intro_title: str
+    intro_items: list[str]
+    recommendation_title: str
+    recommendation_items: list[str]
 
 
 class DatasetAnalysisReportService:
     """根据分析历史记录生成中文报告草稿结构。"""
 
+    TEMPLATE_DEFINITIONS: dict[
+        DatasetAnalysisReportTemplateKey,
+        ReportTemplateDefinition,
+    ] = {
+        "general": ReportTemplateDefinition(
+            key="general",
+            name="通用分析模板",
+            description="适合常规统计分析结果查看与留档的默认中文报告模板。",
+            title_prefix="通用统计分析",
+            intro_title="一、报告说明",
+            intro_items=[
+                "本模板适合常规教学、科研和日常数据分析场景。",
+                "报告会自动汇总数据概况、结果摘要、结果表、图形摘要和复现脚本。",
+            ],
+            recommendation_title="八、使用建议",
+            recommendation_items=[
+                "建议结合研究问题重点阅读结果摘要、结果解释和关键结果表。",
+                "如需复核过程，可直接查看本报告附带的复现脚本。",
+            ],
+        ),
+        "questionnaire_analysis": ReportTemplateDefinition(
+            key="questionnaire_analysis",
+            name="问卷分析模板",
+            description="适合问卷调查、量表统计和课堂练习讲解的中文报告模板。",
+            title_prefix="问卷分析",
+            intro_title="一、问卷分析说明",
+            intro_items=[
+                "本模板适合展示问卷数据、量表分布和样本基本情况。",
+                "建议优先关注变量取值分布、缺失值处理方式和样本量说明。",
+            ],
+            recommendation_title="八、问卷解读建议",
+            recommendation_items=[
+                "如果结果涉及量表题项，建议结合频数分布和均值水平解释受试者特征。",
+                "用于教学场景时，可把结果表与图形摘要配合展示，帮助理解问卷数据结构。",
+            ],
+        ),
+        "pre_post_experiment": ReportTemplateDefinition(
+            key="pre_post_experiment",
+            name="实验前后测模板",
+            description="适合实验前后测、干预前后比较和课程训练成效展示的中文报告模板。",
+            title_prefix="实验前后测",
+            intro_title="一、实验设计说明",
+            intro_items=[
+                "本模板适合整理干预前后测量或训练前后结果的统计报告。",
+                "阅读时建议先确认分析变量、分组设置和有效样本量，再解释结果差异。",
+            ],
+            recommendation_title="八、前后测解读建议",
+            recommendation_items=[
+                "如需判断干预是否有效，建议重点关注结果摘要中的样本量与显著性信息。",
+                "用于论文或课程汇报时，可直接引用结果表并结合复现脚本说明分析过程。",
+            ],
+        ),
+        "group_comparison": ReportTemplateDefinition(
+            key="group_comparison",
+            name="组间比较模板",
+            description="适合班级比较、实验组对照组比较和科研组间差异分析的中文报告模板。",
+            title_prefix="组间比较",
+            intro_title="一、组间比较说明",
+            intro_items=[
+                "本模板适合比较不同组别在目标变量上的差异情况。",
+                "建议先查看分组字段、组别数量和每组样本量，再解读统计检验结果。",
+            ],
+            recommendation_title="八、组间比较建议",
+            recommendation_items=[
+                "如果涉及多个组别，请结合分组汇总表和均值差异图一起判断结果。",
+                "用于教学展示时，可将结果解释与图形摘要配合说明组间差异方向。",
+            ],
+        ),
+    }
+
     def build_report_draft(
         self,
         analysis_record: DatasetAnalysisRecord,
+        template_key: DatasetAnalysisReportTemplateKey = "general",
     ) -> DatasetAnalysisReportDraftResponse:
         """把一条分析历史记录整理成中文报告草稿。"""
         result = analysis_record.result
-        title = f"{result.summary.title}报告"
+        template = self._get_template_definition(template_key)
+        title = f"{template.title_prefix}：{result.summary.title}报告"
         sections = [
+            self._build_intro_section(template),
             self._build_dataset_section(analysis_record),
             self._build_summary_section(analysis_record),
             self._build_interpretation_section(analysis_record),
             self._build_tables_section(analysis_record),
             self._build_plots_section(analysis_record),
             self._build_script_section(analysis_record),
+            self._build_recommendation_section(template),
         ]
         return DatasetAnalysisReportDraftResponse(
             dataset_id=analysis_record.dataset_id,
             analysis_record_id=analysis_record.id,
             analysis_type=analysis_record.analysis_type,
+            template_key=template.key,
             title=title,
             file_name=result.file_name,
             generated_at=analysis_record.created_at,
+            available_templates=self.list_available_templates(),
             sections=sections,
         )
 
-    def build_report_html(self, analysis_record: DatasetAnalysisRecord) -> str:
+    def build_report_html(
+        self,
+        analysis_record: DatasetAnalysisRecord,
+        template_key: DatasetAnalysisReportTemplateKey = "general",
+    ) -> str:
         """把一条分析历史记录渲染成中文 HTML 报告。"""
-        report_draft = self.build_report_draft(analysis_record)
+        report_draft = self.build_report_draft(
+            analysis_record,
+            template_key=template_key,
+        )
         sections_html = "\n".join(
             self._render_section(section) for section in report_draft.sections
         )
         title = escape(report_draft.title)
         generated_at = escape(report_draft.generated_at.isoformat())
+        template_name = escape(
+            self._get_template_definition(report_draft.template_key).name
+        )
         return "\n".join(
             [
                 "<!DOCTYPE html>",
@@ -100,6 +203,7 @@ class DatasetAnalysisReportService:
                 f"      <h1>{title}</h1>",
                 f"      <p><strong>分析类型：</strong>{escape(report_draft.analysis_type)}</p>",
                 f"      <p><strong>数据文件：</strong>{escape(report_draft.file_name)}</p>",
+                f"      <p><strong>报告模板：</strong>{template_name}</p>",
                 f'      <p class="muted">生成时间：{generated_at}</p>',
                 "    </section>",
                 sections_html,
@@ -107,6 +211,29 @@ class DatasetAnalysisReportService:
                 "</body>",
                 "</html>",
             ]
+        )
+
+    def list_available_templates(self) -> list[DatasetAnalysisReportTemplateInfo]:
+        """返回当前内置的中文报告模板信息。"""
+        return [
+            DatasetAnalysisReportTemplateInfo(
+                key=template.key,
+                name=template.name,
+                description=template.description,
+            )
+            for template in self.TEMPLATE_DEFINITIONS.values()
+        ]
+
+    def _build_intro_section(
+        self,
+        template: ReportTemplateDefinition,
+    ) -> DatasetAnalysisReportSection:
+        """生成模板说明区块。"""
+        return DatasetAnalysisReportSection(
+            key="template_intro",
+            title=template.intro_title,
+            section_type="text",
+            content={"items": list(template.intro_items)},
         )
 
     def _build_dataset_section(
@@ -117,7 +244,7 @@ class DatasetAnalysisReportService:
         result = analysis_record.result
         return DatasetAnalysisReportSection(
             key="dataset_overview",
-            title="一、数据与分析概览",
+            title="二、数据与分析概览",
             section_type="summary",
             content={
                 "dataset_name": result.dataset_name,
@@ -137,7 +264,7 @@ class DatasetAnalysisReportService:
         summary = analysis_record.result.summary
         return DatasetAnalysisReportSection(
             key="analysis_summary",
-            title="二、结果摘要",
+            title="三、结果摘要",
             section_type="summary",
             content={
                 "title": summary.title,
@@ -154,7 +281,7 @@ class DatasetAnalysisReportService:
         """生成结果解释区块。"""
         return DatasetAnalysisReportSection(
             key="interpretations",
-            title="三、结果解释",
+            title="四、结果解释",
             section_type="text",
             content={"items": list(analysis_record.result.interpretations)},
         )
@@ -167,7 +294,7 @@ class DatasetAnalysisReportService:
         tables = [table.model_dump(mode="json") for table in analysis_record.result.tables]
         return DatasetAnalysisReportSection(
             key="result_tables",
-            title="四、结果表",
+            title="五、结果表",
             section_type="table",
             content={"items": tables},
         )
@@ -180,7 +307,7 @@ class DatasetAnalysisReportService:
         plots = [plot.model_dump(mode="json") for plot in analysis_record.result.plots]
         return DatasetAnalysisReportSection(
             key="result_plots",
-            title="五、图形摘要",
+            title="六、图形摘要",
             section_type="plot_list",
             content={"items": plots},
         )
@@ -192,9 +319,21 @@ class DatasetAnalysisReportService:
         """生成复现脚本区块。"""
         return DatasetAnalysisReportSection(
             key="reproducible_script",
-            title="六、复现脚本",
+            title="七、复现脚本",
             section_type="script",
             content={"script": analysis_record.result.script_draft},
+        )
+
+    def _build_recommendation_section(
+        self,
+        template: ReportTemplateDefinition,
+    ) -> DatasetAnalysisReportSection:
+        """生成模板化的使用建议区块。"""
+        return DatasetAnalysisReportSection(
+            key="template_recommendations",
+            title=template.recommendation_title,
+            section_type="text",
+            content={"items": list(template.recommendation_items)},
         )
 
     def _render_section(self, section: DatasetAnalysisReportSection) -> str:
@@ -316,3 +455,10 @@ class DatasetAnalysisReportService:
                 return "无"
             return escape("、".join(str(item) for item in value))
         return escape(str(value))
+
+    def _get_template_definition(
+        self,
+        template_key: DatasetAnalysisReportTemplateKey,
+    ) -> ReportTemplateDefinition:
+        """返回指定模板定义。"""
+        return self.TEMPLATE_DEFINITIONS[template_key]

@@ -11,6 +11,13 @@ DatasetAnalysisType = Literal[
     "correlation_analysis",
 ]
 
+DatasetAnalysisReportTemplateKey = Literal[
+    "general",
+    "questionnaire_analysis",
+    "pre_post_experiment",
+    "group_comparison",
+]
+
 
 class DatasetAnalysisCreateRequest(BaseModel):
     """定义创建统计分析任务时的请求结构。"""
@@ -121,14 +128,24 @@ class DatasetAnalysisReportSection(BaseModel):
     content: dict[str, Any] = Field(default_factory=dict)
 
 
+class DatasetAnalysisReportTemplateInfo(BaseModel):
+    """定义可选中文报告模板的说明信息。"""
+
+    key: DatasetAnalysisReportTemplateKey
+    name: str
+    description: str
+
+
 class DatasetAnalysisReportDraftResponse(BaseModel):
     """定义统计分析报告草稿接口的响应结构。"""
 
     dataset_id: str
     analysis_record_id: str
     analysis_type: DatasetAnalysisType
+    template_key: DatasetAnalysisReportTemplateKey = "general"
     title: str
     file_name: str
     generated_at: datetime
     supported_export_formats: list[Literal["html"]] = Field(default_factory=lambda: ["html"])
+    available_templates: list[DatasetAnalysisReportTemplateInfo] = Field(default_factory=list)
     sections: list[DatasetAnalysisReportSection] = Field(default_factory=list)
