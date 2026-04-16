@@ -10,10 +10,13 @@ class DatasetCleaningRScriptService:
         self,
         record: DatasetRecord,
         cleaning_steps: list[DatasetCleaningStepRecord],
+        *,
+        title: str = "# 数据清洗 R 代码草稿",
+        include_result_output: bool = True,
     ) -> str:
         """把当前数据集的清洗步骤翻译成一份 R 代码草稿。"""
         lines = [
-            "# 数据清洗 R 代码草稿",
+            title,
             f"# 数据集名称: {record.name}",
             f"# 原始文件名: {record.file_name}",
             f"# 数据集 ID: {record.id}",
@@ -72,24 +75,27 @@ class DatasetCleaningRScriptService:
         ]
 
         if not cleaning_steps:
-            lines.extend(
-                [
-                    "# 当前还没有记录任何清洗步骤",
-                    "cleaned_data <- raw_data",
-                ]
-            )
+            lines.append("# 当前还没有记录任何清洗步骤")
+            if include_result_output:
+                lines.extend(
+                    [
+                        "# 清洗完成后的数据结果",
+                        "cleaned_data",
+                    ]
+                )
             return "\n".join(lines)
 
         for step in cleaning_steps:
             lines.extend(self._build_step_lines(step))
             lines.append("")
 
-        lines.extend(
-            [
-                "# 清洗完成后的数据结果",
-                "cleaned_data",
-            ]
-        )
+        if include_result_output:
+            lines.extend(
+                [
+                    "# 清洗完成后的数据结果",
+                    "cleaned_data",
+                ]
+            )
         return "\n".join(lines)
 
     def _build_package_line(self, extension: str) -> str:

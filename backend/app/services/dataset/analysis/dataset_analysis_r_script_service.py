@@ -40,8 +40,37 @@ class DatasetAnalysisRScriptService:
             "",
         ]
 
-        lines.extend(self._build_analysis_lines(prepared_request))
+        lines.extend(self._build_fragment_lines(prepared_request, source_data_name="raw_data"))
         return "\n".join(lines)
+
+    def build_fragment(
+        self,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        *,
+        source_data_name: str = "cleaned_data",
+    ) -> str:
+        """生成可拼接到完整流程脚本中的统计分析片段。"""
+        return "\n".join(
+            self._build_fragment_lines(
+                prepared_request=prepared_request,
+                source_data_name=source_data_name,
+            )
+        )
+
+    def _build_fragment_lines(
+        self,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        source_data_name: str,
+    ) -> list[str]:
+        """生成基于已有数据框继续分析的脚本片段。"""
+        lines = [
+            "# 统计分析步骤",
+            f"# 分析方法: {self._build_analysis_title(prepared_request.analysis_type)}",
+            f"analysis_data <- {source_data_name}",
+            "",
+        ]
+        lines.extend(self._build_analysis_lines(prepared_request))
+        return lines
 
     def _build_analysis_lines(
         self,

@@ -22,6 +22,9 @@ from app.services.dataset.analysis.dataset_analysis_r_script_service import (
 from app.services.dataset.cleaning.dataset_cleaning_execute_service import (
     DatasetCleaningExecuteService,
 )
+from app.services.dataset.cleaning.dataset_cleaning_r_script_service import (
+    DatasetCleaningRScriptService,
+)
 from app.services.dataset.dataset_reader_service import DatasetReaderService
 
 
@@ -34,6 +37,7 @@ class DatasetAnalysisService:
         self.cleaning_execute_service = DatasetCleaningExecuteService()
         self.execution_service = DatasetAnalysisExecutionService()
         self.r_script_service = DatasetAnalysisRScriptService()
+        self.cleaning_r_script_service = DatasetCleaningRScriptService()
 
     def prepare_request(
         self,
@@ -97,7 +101,11 @@ class DatasetAnalysisService:
             rows=rows,
             raw_row_count=len(raw_rows),
         )
-        result.script_draft = self.r_script_service.build_script(record, prepared_request)
+        result.script_draft = self._build_complete_script(
+            record=record,
+            prepared_request=prepared_request,
+            cleaning_steps=cleaning_steps,
+        )
         return result
 
     def save_analysis_record(
@@ -227,6 +235,25 @@ class DatasetAnalysisService:
         if missing_columns:
             joined_columns = "、".join(missing_columns)
             raise DatasetAnalysisError(f"统计分析请求包含不存在的字段：{joined_columns}。")
+
+    def _build_complete_script(
+        self,
+        record: DatasetRecord,
+        prepared_request: DatasetAnalysisPreparedRequest,
+        cleaning_steps: list[DatasetCleaningStepRecord],
+    ) -> str:
+        """把清洗步骤和统计分析脚本拼成一份完整可复现脚本。"""
+        cleaning_script = self.cleaning_r_script_service.build_script(
+            record=record,
+            cleaning_steps=cleaning_steps,
+            title="# 数据清洗 + 统计分析 R 代码草稿",
+            include_result_output=False,
+        )
+        analysis_script = self.r_script_service.build_fragment(
+            prepared_request=prepared_request,
+            source_data_name="cleaned_data",
+        )
+        return f"{cleaning_script}\n\n{analysis_script}"
 
     def _to_analysis_record_model(
         self,

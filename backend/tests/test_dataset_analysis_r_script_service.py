@@ -130,3 +130,24 @@ def test_analysis_r_script_service_builds_anova_script() -> None:
     assert 'group_variable <- "class_name"' in script
     assert "anova_model <- stats::aov(" in script
     assert "anova_summary <- summary(anova_model)" in script
+
+
+def test_analysis_r_script_service_builds_fragment_from_cleaned_data() -> None:
+    service = DatasetAnalysisRScriptService()
+
+    fragment = service.build_fragment(
+        prepared_request=DatasetAnalysisPreparedRequest(
+            dataset_id="dataset-1",
+            dataset_name="survey",
+            file_name="survey.csv",
+            analysis_type="descriptive_statistics",
+            variables=["score"],
+            group_variable=None,
+            options={},
+        ),
+        source_data_name="cleaned_data",
+    )
+
+    assert "# 统计分析步骤" in fragment
+    assert "analysis_data <- cleaned_data" in fragment
+    assert "descriptive_result <- data.frame(" in fragment

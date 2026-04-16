@@ -500,6 +500,9 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert final_payload["result"]["tables"][0]["rows"][0]["mean"] == 91
     assert final_payload["result"]["plots"][0]["plot_type"] == "histogram"
     assert "均值为 91" in final_payload["result"]["interpretations"][0]
+    assert "# 数据清洗 + 统计分析 R 代码草稿" in final_payload["result"]["script_draft"]
+    assert "# 当前还没有记录任何清洗步骤" in final_payload["result"]["script_draft"]
+    assert "analysis_data <- cleaned_data" in final_payload["result"]["script_draft"]
     assert "# 分析方法: 描述统计" in final_payload["result"]["script_draft"]
     assert "descriptive_result <- data.frame(" in final_payload["result"]["script_draft"]
 
@@ -513,6 +516,10 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert history_payload["items"][0]["variables"] == ["score"]
     assert history_payload["items"][0]["task_id"] == create_payload["id"]
     assert history_payload["items"][0]["result"]["summary"]["title"] == "描述统计"
+    assert (
+        "# 数据清洗 + 统计分析 R 代码草稿"
+        in history_payload["items"][0]["result"]["script_draft"]
+    )
     assert "# 分析方法: 描述统计" in history_payload["items"][0]["result"]["script_draft"]
 
 
@@ -646,6 +653,12 @@ def test_create_dataset_analysis_job_applies_cleaning_steps_before_statistics() 
     assert final_payload["result"]["summary"]["effective_row_count"] == 1
     assert final_payload["result"]["summary"]["excluded_row_count"] == 2
     assert final_payload["result"]["tables"][0]["rows"][0]["mean"] == 95
+    assert "# 步骤 1: 只保留高分样本" in final_payload["result"]["script_draft"]
+    assert (
+        'cleaned_data <- cleaned_data[rflow_num(cleaned_data[["score"]]) >= 90, , drop = FALSE]'
+        in final_payload["result"]["script_draft"]
+    )
+    assert "analysis_data <- cleaned_data" in final_payload["result"]["script_draft"]
 
 
 def test_create_correlation_analysis_job_returns_completed_result() -> None:
