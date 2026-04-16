@@ -36,6 +36,12 @@ def test_analysis_r_script_service_builds_descriptive_statistics_script() -> Non
         ),
     )
 
+    assert "# 脚本用途: 根据当前分析配置，生成可复现的 R 统计分析脚本。" in script
+    assert "# 包依赖说明" in script
+    assert "# 数据来源说明" in script
+    assert "# 参数说明" in script
+    assert "# - 分析字段: score、age" in script
+    assert "# - 分组字段: 无" in script
     assert "# 分析方法: 描述统计" in script
     assert 'selected_variables <- c("score", "age")' in script
     assert "descriptive_result <- data.frame(" in script
@@ -59,6 +65,7 @@ def test_analysis_r_script_service_builds_correlation_analysis_script() -> None:
     )
 
     assert "# 分析方法: 相关分析" in script
+    assert "# - 分析字段: score、age" in script
     assert "analysis_data[] <- lapply(analysis_data, rflow_num)" in script
     assert "correlation_matrix <- stats::cor(" in script
     assert 'method = "pearson"' in script
@@ -103,6 +110,7 @@ def test_analysis_r_script_service_builds_t_test_script() -> None:
     )
 
     assert "# 分析方法: 独立样本 t 检验" in script
+    assert "# - 分组字段: group" in script
     assert 'target_variable <- "score"' in script
     assert 'group_variable <- "group"' in script
     assert "t_test_result <- stats::t.test(" in script
@@ -149,5 +157,6 @@ def test_analysis_r_script_service_builds_fragment_from_cleaned_data() -> None:
     )
 
     assert "# 统计分析步骤" in fragment
+    assert "# 参数说明" in fragment
     assert "analysis_data <- cleaned_data" in fragment
     assert "descriptive_result <- data.frame(" in fragment

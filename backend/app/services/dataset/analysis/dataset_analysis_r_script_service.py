@@ -13,17 +13,30 @@ class DatasetAnalysisRScriptService:
         """把当前统计分析请求翻译成一份 R 代码草稿。"""
         lines = [
             "# 统计分析 R 代码草稿",
+            "# 脚本用途: 根据当前分析配置，生成可复现的 R 统计分析脚本。",
             f"# 数据集名称: {record.name}",
             f"# 原始文件名: {record.file_name}",
             f"# 数据集 ID: {record.id}",
             f"# 分析方法: {self._build_analysis_title(prepared_request.analysis_type)}",
             "# 说明: 当前草稿仅包含统计分析步骤，不包含前置数据清洗步骤。",
             "",
+            "# 包依赖说明",
+            f"# - {self._build_package_name(record.extension)}",
+            "# - 如果你的本地 R 环境尚未安装对应依赖，请先执行 install.packages()。",
+            "",
             self._build_package_line(record.extension),
+            "",
+            "# 数据来源说明",
+            "# - 当前 data_path 指向平台内部保存的原始数据文件。",
+            "# - 如果你要在外部环境运行，请先把 data_path 改成你自己的文件路径。",
+            "# - analysis_data 表示进入统计分析时使用的数据框。",
             "",
             self._build_data_path_line(record.stored_path),
             self._build_read_line(record.extension),
             "analysis_data <- raw_data",
+            "",
+            "# 参数说明",
+            *self._build_parameter_comment_lines(prepared_request),
             "",
             "# 分析辅助函数",
             "rflow_is_missing <- function(x) {",
@@ -66,6 +79,7 @@ class DatasetAnalysisRScriptService:
         lines = [
             "# 统计分析步骤",
             f"# 分析方法: {self._build_analysis_title(prepared_request.analysis_type)}",
+            *self._build_parameter_comment_lines(prepared_request),
             f"analysis_data <- {source_data_name}",
             "",
         ]
@@ -247,6 +261,16 @@ class DatasetAnalysisRScriptService:
             return "library(haven)"
         return "# TODO: 请根据实际数据格式补充读取依赖"
 
+    def _build_package_name(self, extension: str) -> str:
+        """根据文件扩展名返回当前脚本依赖的包名。"""
+        if extension == ".csv":
+            return "readr"
+        if extension == ".xlsx":
+            return "readxl"
+        if extension == ".sav":
+            return "haven"
+        return "请根据实际数据格式补充依赖"
+
     def _build_data_path_line(self, stored_path: str) -> str:
         """生成数据路径定义语句。"""
         escaped_path = stored_path.replace("\\", "/")
@@ -272,6 +296,25 @@ class DatasetAnalysisRScriptService:
             "one_way_anova": "单因素方差分析",
         }
         return mapping.get(analysis_type, analysis_type)
+
+    def _build_parameter_comment_lines(
+        self,
+        prepared_request: DatasetAnalysisPreparedRequest,
+    ) -> list[str]:
+        """生成脚本头部的参数说明注释。"""
+        variables_text = "、".join(prepared_request.variables) or "未提供"
+        group_variable_text = prepared_request.group_variable or "无"
+        if prepared_request.options:
+            options_text = str(prepared_request.options)
+        else:
+            options_text = "{}"
+
+        return [
+            "# 参数说明",
+            f"# - 分析字段: {variables_text}",
+            f"# - 分组字段: {group_variable_text}",
+            f"# - 附加选项: {options_text}",
+        ]
 
     def _build_r_vector(self, values: list[str]) -> str:
         """把字符串列表拼成 R 向量文本。"""

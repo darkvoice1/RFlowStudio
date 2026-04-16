@@ -538,6 +538,13 @@ def test_get_dataset_cleaning_r_script_returns_base_draft_for_new_dataset() -> N
     assert payload["dataset_id"] == dataset_id
     assert payload["file_name"] == "survey.csv"
     assert payload["step_count"] == 0
+    assert (
+        "# 脚本用途: 根据当前数据集已记录的清洗步骤，生成可复现的 R 清洗脚本。"
+        in payload["script"]
+    )
+    assert "# 包依赖说明" in payload["script"]
+    assert "# 数据来源说明" in payload["script"]
+    assert "# 参数说明" in payload["script"]
     assert "library(readr)" in payload["script"]
     assert "# 当前还没有记录任何清洗步骤" in payload["script"]
 
@@ -602,6 +609,7 @@ def test_get_dataset_cleaning_r_script_contains_current_step_draft() -> None:
 
     assert response.status_code == 200
     assert payload["step_count"] == 3
+    assert "# - 当前脚本共包含 3 个清洗步骤。" in payload["script"]
     assert "# 步骤 1: 筛选高分样本" in payload["script"]
     assert (
         "cleaned_data <- cleaned_data[rflow_num(cleaned_data[[\"math\"]]) >= 70, "

@@ -17,15 +17,30 @@ class DatasetCleaningRScriptService:
         """把当前数据集的清洗步骤翻译成一份 R 代码草稿。"""
         lines = [
             title,
+            "# 脚本用途: 根据当前数据集已记录的清洗步骤，生成可复现的 R 清洗脚本。",
             f"# 数据集名称: {record.name}",
             f"# 原始文件名: {record.file_name}",
             f"# 数据集 ID: {record.id}",
             "",
+            "# 包依赖说明",
+            f"# - {self._build_package_name(record.extension)}",
+            "# - 如果你的本地 R 环境尚未安装对应依赖，请先执行 install.packages()。",
+            "",
             self._build_package_line(record.extension),
+            "",
+            "# 数据来源说明",
+            "# - 当前 data_path 指向平台内部保存的原始数据文件。",
+            "# - 如果你要在外部环境运行，请先把 data_path 改成你自己的文件路径。",
+            "# - cleaned_data 表示应用清洗步骤后的结果数据框。",
             "",
             self._build_data_path_line(record.stored_path),
             self._build_read_line(record.extension),
             "cleaned_data <- raw_data",
+            "",
+            "# 参数说明",
+            f"# - 当前脚本共包含 {len(cleaning_steps)} 个清洗步骤。",
+            "# - 步骤顺序与平台中展示的顺序保持一致。",
+            "# - 如步骤被标记为禁用，脚本中会保留说明但不会执行。",
             "",
             "# 清洗辅助函数",
             "rflow_is_missing <- function(x) {",
@@ -107,6 +122,16 @@ class DatasetCleaningRScriptService:
         if extension == ".sav":
             return "library(haven)"
         return "# TODO: 请根据实际数据格式补充读取依赖"
+
+    def _build_package_name(self, extension: str) -> str:
+        """根据文件扩展名返回当前脚本依赖的包名。"""
+        if extension == ".csv":
+            return "readr"
+        if extension == ".xlsx":
+            return "readxl"
+        if extension == ".sav":
+            return "haven"
+        return "请根据实际数据格式补充依赖"
 
     def _build_data_path_line(self, stored_path: str) -> str:
         """生成数据路径定义语句。"""
