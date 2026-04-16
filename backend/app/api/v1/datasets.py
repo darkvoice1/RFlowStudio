@@ -9,7 +9,11 @@ from app.core.exceptions import (
     DatasetPreviewError,
     DatasetUploadError,
 )
-from app.schemas.analysis import DatasetAnalysisCreateRequest, DatasetAnalysisRecordListResponse
+from app.schemas.analysis import (
+    DatasetAnalysisCreateRequest,
+    DatasetAnalysisRecordListResponse,
+    DatasetAnalysisScriptResponse,
+)
 from app.schemas.dataset import (
     DatasetCleaningRScriptResponse,
     DatasetCleaningStepCreateRequest,
@@ -188,6 +192,25 @@ def rerun_dataset_analysis_record(dataset_id: str, analysis_record_id: str) -> T
     except (DatasetAnalysisError, DatasetPreviewError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/analysis-records/{analysis_record_id}/script",
+    response_model=DatasetAnalysisScriptResponse,
+    summary="Get dataset analysis script",
+)
+def get_dataset_analysis_script(
+    dataset_id: str,
+    analysis_record_id: str,
+) -> DatasetAnalysisScriptResponse:
+    """返回一条统计分析历史记录对应的完整脚本。"""
+    try:
+        return dataset_service.get_dataset_analysis_script(dataset_id, analysis_record_id)
+    except (DatasetNotFoundError, DatasetAnalysisRecordNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
 

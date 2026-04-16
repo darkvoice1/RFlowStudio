@@ -11,6 +11,7 @@ from app.schemas.analysis import (
     DatasetAnalysisRecord,
     DatasetAnalysisRecordListResponse,
     DatasetAnalysisResult,
+    DatasetAnalysisScriptResponse,
 )
 from app.schemas.dataset import DatasetCleaningStepRecord, DatasetRecord
 from app.services.dataset.analysis.dataset_analysis_execution_service import (
@@ -116,8 +117,10 @@ class DatasetAnalysisService:
         result: DatasetAnalysisResult,
     ) -> DatasetAnalysisRecord:
         """把一次已完成的统计分析结果持久化保存到数据库。"""
+        analysis_record_id = result.analysis_record_id or uuid4().hex
+        result.analysis_record_id = analysis_record_id
         analysis_record = DatasetAnalysisRecord(
-            id=uuid4().hex,
+            id=analysis_record_id,
             dataset_id=dataset_id,
             task_id=task_id,
             analysis_type=prepared_request.analysis_type,
@@ -160,6 +163,22 @@ class DatasetAnalysisService:
             raise DatasetAnalysisRecordNotFoundError("请求的统计分析历史记录不存在。")
 
         return self._to_analysis_record(record_model)
+
+    def get_analysis_script(
+        self,
+        dataset_id: str,
+        analysis_record_id: str,
+    ) -> DatasetAnalysisScriptResponse:
+        """返回指定统计分析历史记录对应的完整脚本。"""
+        analysis_record = self.get_analysis_record(dataset_id, analysis_record_id)
+        script = analysis_record.result.script_draft or ""
+        return DatasetAnalysisScriptResponse(
+            dataset_id=dataset_id,
+            analysis_record_id=analysis_record.id,
+            analysis_type=analysis_record.analysis_type,
+            file_name=analysis_record.result.file_name,
+            script=script,
+        )
 
     def _normalize_variables(self, raw_variables: list[str]) -> list[str]:
         """整理变量列表，去掉空值并保留用户给出的顺序。"""

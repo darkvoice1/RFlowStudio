@@ -491,6 +491,7 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert final_payload["status"] == "completed"
     assert final_payload["result"] is not None
     assert final_payload["result"]["analysis_type"] == "descriptive_statistics"
+    assert final_payload["result"]["analysis_record_id"] is not None
     assert final_payload["result"]["variables"] == ["score"]
     assert final_payload["result"]["status"] == "completed"
     assert final_payload["result"]["summary"]["title"] == "描述统计"
@@ -515,6 +516,7 @@ def test_create_dataset_analysis_job_and_poll_until_completed() -> None:
     assert history_payload["items"][0]["analysis_type"] == "descriptive_statistics"
     assert history_payload["items"][0]["variables"] == ["score"]
     assert history_payload["items"][0]["task_id"] == create_payload["id"]
+    assert history_payload["items"][0]["id"] == final_payload["result"]["analysis_record_id"]
     assert history_payload["items"][0]["result"]["summary"]["title"] == "描述统计"
     assert (
         "# 数据清洗 + 统计分析 R 代码草稿"
@@ -598,6 +600,92 @@ def test_rerun_dataset_analysis_record_creates_new_analysis_task() -> None:
     assert rerun_history_payload["total"] == 2
     assert rerun_history_payload["items"][0]["task_id"] == rerun_payload["id"]
     assert rerun_history_payload["items"][1]["task_id"] == first_task_id
+
+
+def test_get_dataset_analysis_script_returns_saved_complete_script() -> None:
+    """验证结果页可以按分析记录单独读取完整脚本。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n2,88\n3,90\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    create_response = client.post(
+        f"/api/v1/datasets/{dataset_id}/analysis-jobs",
+        json={
+            "analysis_type": "descriptive_statistics",
+            "variables": ["score"],
+        },
+    )
+    task_id = create_response.json()["id"]
+
+    final_payload: dict[str, object] | None = None
+    for _ in range(20):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        final_payload = task_response.json()
+        assert task_response.status_code == 200
+
+        if final_payload["status"] in {"completed", "failed"}:
+            break
+
+        time.sleep(0.05)
+
+    assert final_payload is not None
+    assert final_payload["status"] == "completed"
+    analysis_record_id = final_payload["result"]["analysis_record_id"]
+
+    script_response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/{analysis_record_id}/script"
+    )
+    script_payload = script_response.json()
+
+    assert script_response.status_code == 200
+    assert script_payload["dataset_id"] == dataset_id
+    assert script_payload["analysis_record_id"] == analysis_record_id
+    assert script_payload["analysis_type"] == "descriptive_statistics"
+    assert script_payload["file_name"] == "survey.csv"
+    assert "# 数据清洗 + 统计分析 R 代码草稿" in script_payload["script"]
+    assert "analysis_data <- cleaned_data" in script_payload["script"]
+
+
+def test_get_dataset_analysis_script_returns_404_for_unknown_dataset() -> None:
+    """验证不存在的数据集不能返回伪造的统计分析脚本。"""
+    response = client.get("/api/v1/datasets/not-found/analysis-records/record-1/script")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的数据集不存在。"
+    }
+
+
+def test_get_dataset_analysis_script_returns_404_for_unknown_record() -> None:
+    """验证不存在的分析记录不会返回统计分析脚本。"""
+    upload_response = client.post(
+        "/api/v1/datasets/upload",
+        files={
+            "file": (
+                "survey.csv",
+                BytesIO(b"id,score\n1,95\n"),
+                "text/csv",
+            )
+        },
+    )
+    dataset_id = upload_response.json()["id"]
+
+    response = client.get(
+        f"/api/v1/datasets/{dataset_id}/analysis-records/not-found/script"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "请求的统计分析历史记录不存在。"
+    }
 
 
 def test_create_dataset_analysis_job_applies_cleaning_steps_before_statistics() -> None:

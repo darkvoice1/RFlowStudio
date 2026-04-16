@@ -65,6 +65,7 @@ class DatasetAnalysisSummary(BaseModel):
 class DatasetAnalysisResult(BaseModel):
     """定义统一统计分析结果结构。"""
 
+    analysis_record_id: str | None = None
     dataset_id: str
     dataset_name: str
     file_name: str
@@ -99,3 +100,13 @@ class DatasetAnalysisRecordListResponse(BaseModel):
     dataset_id: str
     items: list[DatasetAnalysisRecord] = Field(default_factory=list)
     total: int
+
+
+class DatasetAnalysisScriptResponse(BaseModel):
+    """定义统计分析脚本查看接口的响应结构。"""
+
+    dataset_id: str
+    analysis_record_id: str
+    analysis_type: DatasetAnalysisType
+    file_name: str
+    script: str
