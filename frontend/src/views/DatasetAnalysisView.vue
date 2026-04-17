@@ -219,6 +219,29 @@
                 <p class="section-copy" v-if="displayResult.group_variable">
                   分组变量：{{ displayResult.group_variable }}
                 </p>
+                <div v-if="displayRecordId" class="section-actions report-entry-actions">
+                  <button
+                    type="button"
+                    class="secondary-button is-compact"
+                    @click="openReportPage(displayRecordId, 'report')"
+                  >
+                    查看报告
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary-button is-compact"
+                    @click="openReportPage(displayRecordId, 'script')"
+                  >
+                    查看脚本
+                  </button>
+                  <button
+                    type="button"
+                    class="text-button"
+                    @click="openHtmlReport(displayRecordId)"
+                  >
+                    打开 HTML
+                  </button>
+                </div>
               </div>
 
               <div v-if="displayResult.interpretations?.length" class="panel-card inset-panel">
@@ -302,6 +325,7 @@
                 v-for="record in analysisHistory"
                 :key="record.id"
                 class="history-card"
+                :class="{ 'is-active': displayRecordId === record.id }"
               >
                 <div class="history-card-head">
                   <div>
@@ -329,6 +353,27 @@
                   <button
                     type="button"
                     class="secondary-button is-compact"
+                    @click="openReportPage(record.id, 'report')"
+                  >
+                    查看报告
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary-button is-compact"
+                    @click="openReportPage(record.id, 'script')"
+                  >
+                    查看脚本
+                  </button>
+                  <button
+                    type="button"
+                    class="text-button"
+                    @click="openHtmlReport(record.id)"
+                  >
+                    HTML
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary-button is-compact"
                     :disabled="rerunningRecordId === record.id"
                     @click="rerunAnalysis(record)"
                   >
@@ -346,11 +391,12 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { apiRequest, formatDateTime } from '../lib/api';
+import { apiRequest, buildApiUrl, formatDateTime } from '../lib/api';
 
 const route = useRoute();
+const router = useRouter();
 
 const datasetId = computed(() => String(route.params.datasetId ?? ''));
 
@@ -359,6 +405,7 @@ const datasetProfile = ref(null);
 const analysisHistory = ref([]);
 const currentTask = ref(null);
 const displayResult = ref(null);
+const displayRecordId = ref('');
 
 const pageError = ref('');
 const historyError = ref('');
@@ -472,6 +519,7 @@ async function loadAnalysisHistory() {
 
     if (!displayResult.value && analysisHistory.value.length) {
       displayResult.value = analysisHistory.value[0].result;
+      displayRecordId.value = analysisHistory.value[0].id;
     }
   } catch (error) {
     historyError.value = error instanceof Error ? error.message : '分析历史读取失败。';
@@ -496,6 +544,7 @@ async function pollTask(taskId) {
 
     if (payload.status === 'completed') {
       displayResult.value = payload.result ?? null;
+      displayRecordId.value = payload.result?.analysis_record_id ?? '';
       analysisSuccessMessage.value = '分析任务已完成。';
       await loadAnalysisHistory();
       return;
@@ -582,6 +631,7 @@ async function submitAnalysis() {
 
 function displayHistoryResult(record) {
   displayResult.value = record.result;
+  displayRecordId.value = record.id;
   analysisSuccessMessage.value = '已切换到历史分析结果。';
   analysisErrorMessage.value = '';
 }
@@ -639,10 +689,38 @@ async function copyText(content, successMessage) {
   }
 }
 
+function openReportPage(recordId, panel = 'report') {
+  if (!recordId) {
+    return;
+  }
+
+  router.push({
+    name: 'dataset-report',
+    params: { datasetId: datasetId.value },
+    query: {
+      recordId,
+      template: 'general',
+      panel,
+    },
+  });
+}
+
+function openHtmlReport(recordId) {
+  if (!recordId) {
+    return;
+  }
+
+  const reportUrl = buildApiUrl(
+    `/datasets/${datasetId.value}/analysis-records/${recordId}/report-html?template_key=general`,
+  );
+  window.open(reportUrl, '_blank', 'noopener');
+}
+
 async function loadPage() {
   pageError.value = '';
   currentTask.value = null;
   displayResult.value = null;
+  displayRecordId.value = '';
   clearPollingTimer();
 
   await loadDatasetDetail();

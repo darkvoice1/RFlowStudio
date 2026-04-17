@@ -39,7 +39,14 @@
         </RouterLink>
         <span v-else class="app-nav-link is-muted">分析</span>
 
-        <span class="app-nav-link is-muted">报告</span>
+        <RouterLink
+          v-if="currentDatasetId"
+          :to="{ name: 'dataset-report', params: { datasetId: currentDatasetId } }"
+          class="app-nav-link"
+        >
+          报告
+        </RouterLink>
+        <span v-else class="app-nav-link is-muted">报告</span>
       </nav>
     </header>
 

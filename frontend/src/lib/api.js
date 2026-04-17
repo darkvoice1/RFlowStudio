@@ -39,6 +39,10 @@ export async function apiRequest(path, init = {}) {
   return payload;
 }
 
+export function buildApiUrl(path) {
+  return joinUrl(getApiBaseUrl(), path);
+}
+
 export function formatDateTime(value) {
   if (!value) {
     return '未知时间';

@@ -3,6 +3,7 @@ import DatasetHomeView from '../views/DatasetHomeView.vue';
 import DatasetDetailView from '../views/DatasetDetailView.vue';
 import DatasetCleaningView from '../views/DatasetCleaningView.vue';
 import DatasetAnalysisView from '../views/DatasetAnalysisView.vue';
+import DatasetReportView from '../views/DatasetReportView.vue';
 
 const routes = [
   {
@@ -24,6 +25,11 @@ const routes = [
     path: '/datasets/:datasetId/analysis',
     name: 'dataset-analysis',
     component: DatasetAnalysisView,
+  },
+  {
+    path: '/datasets/:datasetId/report',
+    name: 'dataset-report',
+    component: DatasetReportView,
   },
 ];
 
