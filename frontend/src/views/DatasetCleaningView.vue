@@ -310,6 +310,12 @@
                 <p class="section-title">当前清洗脚本草稿</p>
               </div>
               <div class="section-actions">
+                <RouterLink
+                  :to="{ name: 'dataset-analysis', params: { datasetId } }"
+                  class="text-link"
+                >
+                  去分析页
+                </RouterLink>
                 <button type="button" class="text-button" :disabled="scriptLoading" @click="loadCleaningScript">
                   {{ scriptLoading ? '读取中...' : '刷新' }}
                 </button>

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import DatasetHomeView from '../views/DatasetHomeView.vue';
 import DatasetDetailView from '../views/DatasetDetailView.vue';
 import DatasetCleaningView from '../views/DatasetCleaningView.vue';
+import DatasetAnalysisView from '../views/DatasetAnalysisView.vue';
 
 const routes = [
   {
@@ -18,6 +19,11 @@ const routes = [
     path: '/datasets/:datasetId/cleaning',
     name: 'dataset-cleaning',
     component: DatasetCleaningView,
+  },
+  {
+    path: '/datasets/:datasetId/analysis',
+    name: 'dataset-analysis',
+    component: DatasetAnalysisView,
   },
 ];
 

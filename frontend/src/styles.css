@@ -141,7 +141,8 @@ a {
 
 .dataset-page,
 .dataset-detail-page,
-.dataset-cleaning-page {
+.dataset-cleaning-page,
+.dataset-analysis-page {
   display: grid;
   gap: 14px;
 }
@@ -508,13 +509,22 @@ a {
   align-items: start;
 }
 
+.analysis-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
 .info-card {
   display: grid;
   gap: 12px;
 }
 
 .cleaning-sidebar,
-.cleaning-main {
+.cleaning-main,
+.analysis-sidebar,
+.analysis-main {
   display: grid;
   gap: 14px;
 }
@@ -568,6 +578,30 @@ a {
   align-items: center;
   gap: 10px;
   color: #374151;
+}
+
+.selection-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selection-pill {
+  padding: 9px 12px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #374151;
+}
+
+.selection-pill.is-active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+.compact-empty-state {
+  padding: 18px 14px;
 }
 
 .detail-info-list {
@@ -673,6 +707,70 @@ a {
   font-size: 12px;
 }
 
+.task-card,
+.result-stack,
+.result-summary-grid,
+.history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(17, 24, 39, 0.03);
+}
+
+.task-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.task-row strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.result-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.inset-panel {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #374151;
+  line-height: 1.8;
+}
+
+.history-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(17, 24, 39, 0.07);
+  background: rgba(255, 255, 255, 0.62);
+  display: grid;
+  gap: 12px;
+}
+
+.history-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-actions {
+  justify-content: flex-start;
+}
+
 .table-shell {
   overflow: auto;
   border: 1px solid rgba(17, 24, 39, 0.06);
@@ -710,6 +808,7 @@ a {
   .content-grid,
   .detail-layout,
   .cleaning-layout,
+  .analysis-layout,
   .detail-metric-row {
     grid-template-columns: 1fr;
   }
@@ -749,6 +848,10 @@ a {
   }
 
   .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-summary-grid {
     grid-template-columns: 1fr;
   }
 

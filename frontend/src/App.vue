@@ -30,7 +30,15 @@
         </RouterLink>
         <span v-else class="app-nav-link is-muted">清洗</span>
 
-        <span class="app-nav-link is-muted">分析</span>
+        <RouterLink
+          v-if="currentDatasetId"
+          :to="{ name: 'dataset-analysis', params: { datasetId: currentDatasetId } }"
+          class="app-nav-link"
+        >
+          分析
+        </RouterLink>
+        <span v-else class="app-nav-link is-muted">分析</span>
+
         <span class="app-nav-link is-muted">报告</span>
       </nav>
     </header>
