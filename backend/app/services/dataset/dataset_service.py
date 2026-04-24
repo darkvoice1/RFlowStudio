@@ -26,6 +26,15 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
+from app.schemas.workflow import (
+    DatasetWorkflowCreateRequest,
+    DatasetWorkflowDetailResponse,
+    DatasetWorkflowListResponse,
+    DatasetWorkflowResponse,
+    DatasetWorkflowVersionCreateRequest,
+    DatasetWorkflowVersionListResponse,
+    DatasetWorkflowVersionResponse,
+)
 from app.services.dataset.analysis.dataset_analysis_service import DatasetAnalysisService
 from app.services.dataset.cleaning.dataset_cleaning_manage_service import (
     DatasetCleaningManageService,
@@ -35,6 +44,7 @@ from app.services.dataset.cleaning.dataset_cleaning_r_script_service import (
 )
 from app.services.dataset.dataset_preview_service import DatasetPreviewService
 from app.services.dataset.dataset_upload_service import DatasetUploadService
+from app.services.dataset.workflow.dataset_workflow_service import DatasetWorkflowService
 from app.services.task_service import task_service
 
 
@@ -50,6 +60,7 @@ class DatasetService:
         )
         self.cleaning_r_script_service = DatasetCleaningRScriptService()
         self.analysis_service = DatasetAnalysisService()
+        self.workflow_service = DatasetWorkflowService()
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -245,6 +256,48 @@ class DatasetService:
             analysis_record_id,
             template_key=template_key,
         )
+
+    def list_dataset_workflows(self, dataset_id: str) -> DatasetWorkflowListResponse:
+        """返回指定数据集下的工作流列表。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.list_workflows(dataset_id)
+
+    def create_dataset_workflow(
+        self,
+        dataset_id: str,
+        payload: DatasetWorkflowCreateRequest,
+    ) -> DatasetWorkflowResponse:
+        """为指定数据集创建一条工作流。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.create_workflow(dataset_id, payload)
+
+    def get_dataset_workflow_detail(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+    ) -> DatasetWorkflowDetailResponse:
+        """返回指定工作流详情及其版本列表。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.get_workflow_detail(dataset_id, workflow_id)
+
+    def list_dataset_workflow_versions(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+    ) -> DatasetWorkflowVersionListResponse:
+        """返回指定工作流下的版本列表。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.list_workflow_versions(dataset_id, workflow_id)
+
+    def create_dataset_workflow_version(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        payload: DatasetWorkflowVersionCreateRequest,
+    ) -> DatasetWorkflowVersionResponse:
+        """为指定工作流创建新版本。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.create_workflow_version(dataset_id, workflow_id, payload)
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""

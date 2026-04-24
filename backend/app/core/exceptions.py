@@ -22,5 +22,9 @@ class DatasetAnalysisRecordNotFoundError(Exception):
     """表示请求的统计分析历史记录不存在。"""
 
 
+class DatasetWorkflowNotFoundError(Exception):
+    """表示请求的数据集工作流不存在。"""
+
+
 class TaskNotFoundError(Exception):
     """表示请求的异步任务不存在。"""

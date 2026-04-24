@@ -70,6 +70,10 @@ def initialize_database() -> None:
             DatasetCleaningStepModel,
             DatasetRecordModel,
         )
+        from app.models.workflow import (  # noqa: F401
+            DatasetWorkflowModel,
+            DatasetWorkflowVersionModel,
+        )
 
         Base.metadata.create_all(bind=engine)
         _schema_initialized = True

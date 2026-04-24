@@ -9,6 +9,7 @@ from app.core.exceptions import (
     DatasetNotFoundError,
     DatasetPreviewError,
     DatasetUploadError,
+    DatasetWorkflowNotFoundError,
 )
 from app.schemas.analysis import (
     DatasetAnalysisCreateRequest,
@@ -30,6 +31,15 @@ from app.schemas.dataset import (
     DatasetUploadResponse,
 )
 from app.schemas.task import TaskListResponse, TaskResponse
+from app.schemas.workflow import (
+    DatasetWorkflowCreateRequest,
+    DatasetWorkflowDetailResponse,
+    DatasetWorkflowListResponse,
+    DatasetWorkflowResponse,
+    DatasetWorkflowVersionCreateRequest,
+    DatasetWorkflowVersionListResponse,
+    DatasetWorkflowVersionResponse,
+)
 from app.services.dataset.dataset_service import dataset_service
 
 router = APIRouter(prefix="/datasets")
@@ -340,6 +350,101 @@ def get_dataset_cleaning_r_script(dataset_id: str) -> DatasetCleaningRScriptResp
     try:
         return dataset_service.get_dataset_cleaning_r_script(dataset_id)
     except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/workflows",
+    response_model=DatasetWorkflowListResponse,
+    summary="List dataset workflows",
+)
+def list_dataset_workflows(dataset_id: str) -> DatasetWorkflowListResponse:
+    """返回指定数据集下的工作流列表。"""
+    try:
+        return dataset_service.list_dataset_workflows(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/workflows",
+    response_model=DatasetWorkflowResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create dataset workflow",
+)
+def create_dataset_workflow(
+    dataset_id: str,
+    payload: DatasetWorkflowCreateRequest,
+) -> DatasetWorkflowResponse:
+    """为指定数据集创建一条新的工作流。"""
+    try:
+        return dataset_service.create_dataset_workflow(dataset_id, payload)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/workflows/{workflow_id}",
+    response_model=DatasetWorkflowDetailResponse,
+    summary="Get dataset workflow detail",
+)
+def get_dataset_workflow_detail(
+    dataset_id: str,
+    workflow_id: str,
+) -> DatasetWorkflowDetailResponse:
+    """返回指定工作流详情及其版本列表。"""
+    try:
+        return dataset_service.get_dataset_workflow_detail(dataset_id, workflow_id)
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/workflows/{workflow_id}/versions",
+    response_model=DatasetWorkflowVersionListResponse,
+    summary="List dataset workflow versions",
+)
+def list_dataset_workflow_versions(
+    dataset_id: str,
+    workflow_id: str,
+) -> DatasetWorkflowVersionListResponse:
+    """返回指定工作流下的版本列表。"""
+    try:
+        return dataset_service.list_dataset_workflow_versions(dataset_id, workflow_id)
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/workflows/{workflow_id}/versions",
+    response_model=DatasetWorkflowVersionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create dataset workflow version",
+)
+def create_dataset_workflow_version(
+    dataset_id: str,
+    workflow_id: str,
+    payload: DatasetWorkflowVersionCreateRequest,
+) -> DatasetWorkflowVersionResponse:
+    """为指定工作流创建一条新版本。"""
+    try:
+        return dataset_service.create_dataset_workflow_version(dataset_id, workflow_id, payload)
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
