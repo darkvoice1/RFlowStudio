@@ -1,4 +1,4 @@
-﻿from datetime import UTC, datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import desc, func, select
@@ -100,7 +100,12 @@ class DatasetWorkflowService:
                 .order_by(desc(DatasetWorkflowVersionModel.version_number))
             ).all()
 
-        items = [self._to_workflow_version_response(self._to_workflow_version_record(model)) for model in models]
+        items = [
+            self._to_workflow_version_response(
+                self._to_workflow_version_record(model)
+            )
+            for model in models
+        ]
         return DatasetWorkflowVersionListResponse(
             dataset_id=dataset_id,
             workflow_id=workflow_id,
