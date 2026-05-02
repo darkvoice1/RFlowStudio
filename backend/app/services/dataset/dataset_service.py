@@ -29,6 +29,9 @@ from app.schemas.task import TaskListResponse, TaskResponse
 from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
     DatasetWorkflowDetailResponse,
+    DatasetWorkflowEdgeCreateRequest,
+    DatasetWorkflowEdgeListResponse,
+    DatasetWorkflowEdgeResponse,
     DatasetWorkflowListResponse,
     DatasetWorkflowNodeCreateRequest,
     DatasetWorkflowNodeListResponse,
@@ -298,7 +301,7 @@ class DatasetService:
         workflow_id: str,
         payload: DatasetWorkflowVersionCreateRequest,
     ) -> DatasetWorkflowVersionResponse:
-        """为指定工作流创建新版本。"""
+        """把当前工作流保存为历史版本。"""
         self.upload_service.load_record(dataset_id)
         return self.workflow_service.create_workflow_version(dataset_id, workflow_id, payload)
 
@@ -306,29 +309,51 @@ class DatasetService:
         self,
         dataset_id: str,
         workflow_id: str,
-        workflow_version_id: str,
     ) -> DatasetWorkflowNodeListResponse:
-        """返回指定工作流版本下的节点列表。"""
+        """返回指定工作流当前编辑态下的节点列表。"""
         self.upload_service.load_record(dataset_id)
         return self.workflow_service.list_workflow_nodes(
             dataset_id,
             workflow_id,
-            workflow_version_id,
         )
 
     def create_dataset_workflow_node(
         self,
         dataset_id: str,
         workflow_id: str,
-        workflow_version_id: str,
         payload: DatasetWorkflowNodeCreateRequest,
     ) -> DatasetWorkflowNodeResponse:
-        """为指定工作流版本创建一个节点。"""
+        """为指定工作流当前编辑态创建一个节点。"""
         self.upload_service.load_record(dataset_id)
         return self.workflow_service.create_workflow_node(
             dataset_id,
             workflow_id,
-            workflow_version_id,
+            payload,
+        )
+
+    def list_dataset_workflow_edges(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+    ) -> DatasetWorkflowEdgeListResponse:
+        """返回指定工作流当前编辑态下的连线列表。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.list_workflow_edges(
+            dataset_id,
+            workflow_id,
+        )
+
+    def create_dataset_workflow_edge(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        payload: DatasetWorkflowEdgeCreateRequest,
+    ) -> DatasetWorkflowEdgeResponse:
+        """为指定工作流当前编辑态创建一条连线。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.create_workflow_edge(
+            dataset_id,
+            workflow_id,
             payload,
         )
 

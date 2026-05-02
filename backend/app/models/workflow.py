@@ -50,7 +50,16 @@ class DatasetWorkflowVersionModel(Base):
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    nodes_snapshot: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    edges_snapshot: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -59,13 +68,13 @@ class DatasetWorkflowNodeModel(Base):
 
     __tablename__ = "dataset_workflow_nodes"
     __table_args__ = (
-        UniqueConstraint("workflow_version_id", "node_key", name="uq_dataset_workflow_node_key"),
+        UniqueConstraint("workflow_id", "node_key", name="uq_dataset_workflow_node_key"),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    workflow_version_id: Mapped[str] = mapped_column(
+    workflow_id: Mapped[str] = mapped_column(
         String(32),
-        ForeignKey("dataset_workflow_versions.id", ondelete="CASCADE"),
+        ForeignKey("dataset_workflows.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -76,5 +85,38 @@ class DatasetWorkflowNodeModel(Base):
     config: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
     position_x: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     position_y: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class DatasetWorkflowEdgeModel(Base):
+    """定义数据集工作流连线表。"""
+
+    __tablename__ = "dataset_workflow_edges"
+    __table_args__ = (
+        UniqueConstraint("workflow_id", "edge_key", name="uq_dataset_workflow_edge_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    workflow_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("dataset_workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    edge_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_node_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("dataset_workflow_nodes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    target_node_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("dataset_workflow_nodes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_handle: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_handle: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    config: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
