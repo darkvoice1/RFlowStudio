@@ -1,16 +1,27 @@
-from datetime import UTC, datetime
+﻿from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import desc, func, select
 
-from app.core.exceptions import DatasetNotFoundError, DatasetWorkflowNotFoundError
+from app.core.exceptions import (
+    DatasetNotFoundError,
+    DatasetWorkflowNotFoundError,
+)
 from app.db.session import session_scope
 from app.models.dataset import DatasetRecordModel
-from app.models.workflow import DatasetWorkflowModel, DatasetWorkflowVersionModel
+from app.models.workflow import (
+    DatasetWorkflowModel,
+    DatasetWorkflowNodeModel,
+    DatasetWorkflowVersionModel,
+)
 from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
     DatasetWorkflowDetailResponse,
     DatasetWorkflowListResponse,
+    DatasetWorkflowNodeCreateRequest,
+    DatasetWorkflowNodeListResponse,
+    DatasetWorkflowNodeRecord,
+    DatasetWorkflowNodeResponse,
     DatasetWorkflowRecord,
     DatasetWorkflowResponse,
     DatasetWorkflowVersionCreateRequest,
@@ -34,8 +45,15 @@ class DatasetWorkflowService:
                 .order_by(desc(DatasetWorkflowModel.updated_at))
             ).all()
 
-        items = [self._to_workflow_response(self._to_workflow_record(model)) for model in models]
-        return DatasetWorkflowListResponse(dataset_id=dataset_id, items=items, total=len(items))
+        items = [
+            self._to_workflow_response(self._to_workflow_record(model))
+            for model in models
+        ]
+        return DatasetWorkflowListResponse(
+            dataset_id=dataset_id,
+            items=items,
+            total=len(items),
+        )
 
     def create_workflow(
         self,
@@ -141,6 +159,87 @@ class DatasetWorkflowService:
         self._touch_workflow(workflow)
         return self._to_workflow_version_response(version_record)
 
+    def list_workflow_nodes(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        workflow_version_id: str,
+    ) -> DatasetWorkflowNodeListResponse:
+        """返回指定工作流版本下的节点列表。"""
+        self.get_workflow_version_record(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+        )
+
+        with session_scope() as session:
+            models = session.scalars(
+                select(DatasetWorkflowNodeModel)
+                .where(
+                    DatasetWorkflowNodeModel.workflow_version_id
+                    == workflow_version_id
+                )
+                .order_by(DatasetWorkflowNodeModel.created_at)
+            ).all()
+
+        items = [
+            self._to_workflow_node_response(self._to_workflow_node_record(model))
+            for model in models
+        ]
+        return DatasetWorkflowNodeListResponse(
+            dataset_id=dataset_id,
+            workflow_id=workflow_id,
+            workflow_version_id=workflow_version_id,
+            items=items,
+            total=len(items),
+        )
+
+    def create_workflow_node(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        workflow_version_id: str,
+        payload: DatasetWorkflowNodeCreateRequest,
+    ) -> DatasetWorkflowNodeResponse:
+        """为指定工作流版本创建一个新节点。"""
+        self.get_workflow_version_record(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+        )
+        now = datetime.now(UTC)
+        node_record = DatasetWorkflowNodeRecord(
+            id=uuid4().hex,
+            workflow_version_id=workflow_version_id,
+            node_key=payload.node_key.strip(),
+            node_type=payload.node_type.strip(),
+            name=payload.name.strip(),
+            description=self._normalize_optional_text(payload.description),
+            config=dict(payload.config),
+            position_x=payload.position_x,
+            position_y=payload.position_y,
+            created_at=now,
+            updated_at=now,
+        )
+        self._save_workflow_node_record(node_record)
+        return self._to_workflow_node_response(node_record)
+
+    def get_workflow_version_record(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        workflow_version_id: str,
+    ) -> DatasetWorkflowVersionRecord:
+        """读取单个工作流版本记录。"""
+        self.get_workflow_record(dataset_id, workflow_id)
+
+        with session_scope() as session:
+            model = session.get(DatasetWorkflowVersionModel, workflow_version_id)
+            if model is None or model.workflow_id != workflow_id:
+                raise DatasetWorkflowNotFoundError("请求的工作流版本不存在。")
+
+        return self._to_workflow_version_record(model)
+
     def _touch_workflow(self, workflow: DatasetWorkflowRecord) -> None:
         """在创建版本后刷新工作流更新时间。"""
         refreshed = workflow.model_copy(update={"updated_at": datetime.now(UTC)})
@@ -167,12 +266,26 @@ class DatasetWorkflowService:
             existing_model.created_at = record.created_at
             existing_model.updated_at = record.updated_at
 
-    def _save_workflow_version_record(self, record: DatasetWorkflowVersionRecord) -> None:
+    def _save_workflow_version_record(
+        self,
+        record: DatasetWorkflowVersionRecord,
+    ) -> None:
         """写入工作流版本记录。"""
         with session_scope() as session:
             session.add(self._to_workflow_version_model(record))
 
-    def _to_workflow_record(self, model: DatasetWorkflowModel) -> DatasetWorkflowRecord:
+    def _save_workflow_node_record(
+        self,
+        record: DatasetWorkflowNodeRecord,
+    ) -> None:
+        """写入工作流节点记录。"""
+        with session_scope() as session:
+            session.add(self._to_workflow_node_model(record))
+
+    def _to_workflow_record(
+        self,
+        model: DatasetWorkflowModel,
+    ) -> DatasetWorkflowRecord:
         """把工作流模型转换为领域记录。"""
         return DatasetWorkflowRecord(
             id=model.id,
@@ -184,7 +297,10 @@ class DatasetWorkflowService:
             updated_at=model.updated_at,
         )
 
-    def _to_workflow_model(self, record: DatasetWorkflowRecord) -> DatasetWorkflowModel:
+    def _to_workflow_model(
+        self,
+        record: DatasetWorkflowRecord,
+    ) -> DatasetWorkflowModel:
         """把工作流记录转换为数据库模型。"""
         return DatasetWorkflowModel(
             id=record.id,
@@ -196,7 +312,10 @@ class DatasetWorkflowService:
             updated_at=record.updated_at,
         )
 
-    def _to_workflow_response(self, record: DatasetWorkflowRecord) -> DatasetWorkflowResponse:
+    def _to_workflow_response(
+        self,
+        record: DatasetWorkflowRecord,
+    ) -> DatasetWorkflowResponse:
         """把工作流记录转换为接口响应结构。"""
         return DatasetWorkflowResponse(**record.model_dump())
 
@@ -234,6 +353,51 @@ class DatasetWorkflowService:
     ) -> DatasetWorkflowVersionResponse:
         """把工作流版本记录转换为接口响应结构。"""
         return DatasetWorkflowVersionResponse(**record.model_dump())
+
+    def _to_workflow_node_record(
+        self,
+        model: DatasetWorkflowNodeModel,
+    ) -> DatasetWorkflowNodeRecord:
+        """把工作流节点模型转换为领域记录。"""
+        return DatasetWorkflowNodeRecord(
+            id=model.id,
+            workflow_version_id=model.workflow_version_id,
+            node_key=model.node_key,
+            node_type=model.node_type,
+            name=model.name,
+            description=model.description,
+            config=model.config,
+            position_x=model.position_x,
+            position_y=model.position_y,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+        )
+
+    def _to_workflow_node_model(
+        self,
+        record: DatasetWorkflowNodeRecord,
+    ) -> DatasetWorkflowNodeModel:
+        """把工作流节点记录转换为数据库模型。"""
+        return DatasetWorkflowNodeModel(
+            id=record.id,
+            workflow_version_id=record.workflow_version_id,
+            node_key=record.node_key,
+            node_type=record.node_type,
+            name=record.name,
+            description=record.description,
+            config=record.config,
+            position_x=record.position_x,
+            position_y=record.position_y,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    def _to_workflow_node_response(
+        self,
+        record: DatasetWorkflowNodeRecord,
+    ) -> DatasetWorkflowNodeResponse:
+        """把工作流节点记录转换为接口响应结构。"""
+        return DatasetWorkflowNodeResponse(**record.model_dump())
 
     def _normalize_optional_text(self, value: str | None) -> str | None:
         """统一清洗可选文本。"""

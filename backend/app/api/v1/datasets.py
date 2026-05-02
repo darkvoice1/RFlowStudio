@@ -35,6 +35,9 @@ from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
     DatasetWorkflowDetailResponse,
     DatasetWorkflowListResponse,
+    DatasetWorkflowNodeCreateRequest,
+    DatasetWorkflowNodeListResponse,
+    DatasetWorkflowNodeResponse,
     DatasetWorkflowResponse,
     DatasetWorkflowVersionCreateRequest,
     DatasetWorkflowVersionListResponse,
@@ -444,6 +447,57 @@ def create_dataset_workflow_version(
     """为指定工作流创建一条新版本。"""
     try:
         return dataset_service.create_dataset_workflow_version(dataset_id, workflow_id, payload)
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{dataset_id}/workflows/{workflow_id}/versions/{workflow_version_id}/nodes",
+    response_model=DatasetWorkflowNodeListResponse,
+    summary="List dataset workflow nodes",
+)
+def list_dataset_workflow_nodes(
+    dataset_id: str,
+    workflow_id: str,
+    workflow_version_id: str,
+) -> DatasetWorkflowNodeListResponse:
+    """返回指定工作流版本下的节点列表。"""
+    try:
+        return dataset_service.list_dataset_workflow_nodes(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+        )
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/workflows/{workflow_id}/versions/{workflow_version_id}/nodes",
+    response_model=DatasetWorkflowNodeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create dataset workflow node",
+)
+def create_dataset_workflow_node(
+    dataset_id: str,
+    workflow_id: str,
+    workflow_version_id: str,
+    payload: DatasetWorkflowNodeCreateRequest,
+) -> DatasetWorkflowNodeResponse:
+    """为指定工作流版本创建一个节点。"""
+    try:
+        return dataset_service.create_dataset_workflow_node(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+            payload,
+        )
     except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

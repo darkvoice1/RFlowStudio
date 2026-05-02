@@ -72,6 +72,7 @@ def initialize_database() -> None:
         )
         from app.models.workflow import (  # noqa: F401
             DatasetWorkflowModel,
+            DatasetWorkflowNodeModel,
             DatasetWorkflowVersionModel,
         )
 

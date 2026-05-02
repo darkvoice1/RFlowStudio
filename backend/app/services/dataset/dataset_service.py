@@ -30,6 +30,9 @@ from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
     DatasetWorkflowDetailResponse,
     DatasetWorkflowListResponse,
+    DatasetWorkflowNodeCreateRequest,
+    DatasetWorkflowNodeListResponse,
+    DatasetWorkflowNodeResponse,
     DatasetWorkflowResponse,
     DatasetWorkflowVersionCreateRequest,
     DatasetWorkflowVersionListResponse,
@@ -298,6 +301,36 @@ class DatasetService:
         """为指定工作流创建新版本。"""
         self.upload_service.load_record(dataset_id)
         return self.workflow_service.create_workflow_version(dataset_id, workflow_id, payload)
+
+    def list_dataset_workflow_nodes(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        workflow_version_id: str,
+    ) -> DatasetWorkflowNodeListResponse:
+        """返回指定工作流版本下的节点列表。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.list_workflow_nodes(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+        )
+
+    def create_dataset_workflow_node(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        workflow_version_id: str,
+        payload: DatasetWorkflowNodeCreateRequest,
+    ) -> DatasetWorkflowNodeResponse:
+        """为指定工作流版本创建一个节点。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.create_workflow_node(
+            dataset_id,
+            workflow_id,
+            workflow_version_id,
+            payload,
+        )
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:
         """在后台执行字段分析任务并更新状态。"""
