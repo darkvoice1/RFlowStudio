@@ -34,6 +34,7 @@ from app.schemas.workflow import (
     DatasetWorkflowEdgeResponse,
     DatasetWorkflowListResponse,
     DatasetWorkflowNodeCreateRequest,
+    DatasetWorkflowNodeExecuteResponse,
     DatasetWorkflowNodeListResponse,
     DatasetWorkflowNodeResponse,
     DatasetWorkflowResponse,
@@ -52,6 +53,7 @@ from app.services.dataset.dataset_preview_service import DatasetPreviewService
 from app.services.dataset.dataset_upload_service import DatasetUploadService
 from app.services.dataset.workflow.dataset_workflow_service import DatasetWorkflowService
 from app.services.task_service import task_service
+from app.services.workflow.workflow_execution_service import WorkflowExecutionService
 
 
 class DatasetService:
@@ -67,6 +69,9 @@ class DatasetService:
         self.cleaning_r_script_service = DatasetCleaningRScriptService()
         self.analysis_service = DatasetAnalysisService()
         self.workflow_service = DatasetWorkflowService()
+        self.workflow_service.execution_service = WorkflowExecutionService(
+            dataset_detail_loader=self.get_dataset_detail
+        )
 
     def list_datasets(self) -> DatasetListResponse:
         """返回当前已保存的数据集列表。"""
@@ -355,6 +360,24 @@ class DatasetService:
             dataset_id,
             workflow_id,
             payload,
+        )
+
+    def execute_dataset_workflow_node(
+        self,
+        dataset_id: str,
+        workflow_id: str,
+        node_id: str,
+        input_values: dict[str, object],
+        metadata: dict[str, object],
+    ) -> DatasetWorkflowNodeExecuteResponse:
+        """执行指定工作流中的单个节点。"""
+        self.upload_service.load_record(dataset_id)
+        return self.workflow_service.execute_workflow_node(
+            dataset_id=dataset_id,
+            workflow_id=workflow_id,
+            node_id=node_id,
+            input_values=input_values,
+            metadata=metadata,
         )
 
     def _run_dataset_profile_task(self, task_id: str, dataset_id: str) -> None:

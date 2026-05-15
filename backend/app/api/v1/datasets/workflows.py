@@ -4,6 +4,7 @@ from app.core.exceptions import (
     DatasetNotFoundError,
     DatasetWorkflowNotFoundError,
     DatasetWorkflowValidationError,
+    WorkflowNodeExecutionError,
 )
 from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
@@ -13,6 +14,8 @@ from app.schemas.workflow import (
     DatasetWorkflowEdgeResponse,
     DatasetWorkflowListResponse,
     DatasetWorkflowNodeCreateRequest,
+    DatasetWorkflowNodeExecuteRequest,
+    DatasetWorkflowNodeExecuteResponse,
     DatasetWorkflowNodeListResponse,
     DatasetWorkflowNodeResponse,
     DatasetWorkflowResponse,
@@ -163,6 +166,38 @@ def create_dataset_workflow_node(
             detail=str(exc),
         ) from exc
     except DatasetWorkflowValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{dataset_id}/workflows/{workflow_id}/nodes/{node_id}/execute",
+    response_model=DatasetWorkflowNodeExecuteResponse,
+    summary="Execute dataset workflow node",
+)
+def execute_dataset_workflow_node(
+    dataset_id: str,
+    workflow_id: str,
+    node_id: str,
+    payload: DatasetWorkflowNodeExecuteRequest,
+) -> DatasetWorkflowNodeExecuteResponse:
+    """执行指定工作流中的单个节点，用于协议调试和后续编排接入。"""
+    try:
+        return dataset_service.execute_dataset_workflow_node(
+            dataset_id=dataset_id,
+            workflow_id=workflow_id,
+            node_id=node_id,
+            input_values=payload.input_values,
+            metadata=payload.metadata,
+        )
+    except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (DatasetWorkflowValidationError, WorkflowNodeExecutionError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),

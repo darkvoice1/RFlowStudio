@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -40,6 +40,13 @@ class DatasetWorkflowEdgeCreateRequest(BaseModel):
     source_handle: str | None = Field(default=None, max_length=64)
     target_handle: str | None = Field(default=None, max_length=64)
     config: dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasetWorkflowNodeExecuteRequest(BaseModel):
+    """定义单节点调试执行请求结构。"""
+
+    input_values: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DatasetWorkflowRecord(BaseModel):
@@ -110,7 +117,7 @@ class DatasetWorkflowResponse(BaseModel):
 
 
 class DatasetWorkflowListResponse(BaseModel):
-    """定义工作流列表接口响应结构。"""
+    """定义工作流列表接口的响应结构。"""
 
     dataset_id: str
     items: list[DatasetWorkflowResponse]
@@ -161,6 +168,17 @@ class DatasetWorkflowNodeListResponse(BaseModel):
     workflow_id: str
     items: list[DatasetWorkflowNodeResponse]
     total: int
+
+
+class DatasetWorkflowNodeExecuteResponse(BaseModel):
+    """定义单节点调试执行响应结构。"""
+
+    workflow_id: str
+    node_id: str
+    node_type: str
+    output_values: dict[str, Any] = Field(default_factory=dict)
+    artifacts: dict[str, Any] = Field(default_factory=dict)
+    summary: str | None = None
 
 
 class DatasetWorkflowEdgeResponse(BaseModel):

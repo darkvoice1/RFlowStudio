@@ -34,5 +34,9 @@ class WorkflowNodeNotFoundError(Exception):
     """表示请求的工作流节点定义不存在。"""
 
 
+class WorkflowNodeExecutionError(Exception):
+    """表示工作流节点执行器未接入或执行过程失败。"""
+
+
 class TaskNotFoundError(Exception):
     """表示请求的异步任务不存在。"""
