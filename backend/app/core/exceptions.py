@@ -26,5 +26,13 @@ class DatasetWorkflowNotFoundError(Exception):
     """表示请求的数据集工作流不存在。"""
 
 
+class DatasetWorkflowValidationError(Exception):
+    """表示工作流节点类型或配置校验失败。"""
+
+
+class WorkflowNodeNotFoundError(Exception):
+    """表示请求的工作流节点定义不存在。"""
+
+
 class TaskNotFoundError(Exception):
     """表示请求的异步任务不存在。"""

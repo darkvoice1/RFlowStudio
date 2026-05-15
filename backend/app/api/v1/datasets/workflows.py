@@ -1,6 +1,10 @@
 ﻿from fastapi import APIRouter, HTTPException, status
 
-from app.core.exceptions import DatasetNotFoundError, DatasetWorkflowNotFoundError
+from app.core.exceptions import (
+    DatasetNotFoundError,
+    DatasetWorkflowNotFoundError,
+    DatasetWorkflowValidationError,
+)
 from app.schemas.workflow import (
     DatasetWorkflowCreateRequest,
     DatasetWorkflowDetailResponse,
@@ -156,6 +160,11 @@ def create_dataset_workflow_node(
     except (DatasetNotFoundError, DatasetWorkflowNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DatasetWorkflowValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
 

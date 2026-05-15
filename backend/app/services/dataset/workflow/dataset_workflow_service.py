@@ -34,10 +34,14 @@ from app.schemas.workflow import (
     DatasetWorkflowVersionRecord,
     DatasetWorkflowVersionResponse,
 )
+from app.services.workflow.node_registry_service import workflow_node_registry_service
 
 
 class DatasetWorkflowService:
     """封装数据集工作流、当前编辑态与历史快照管理逻辑。"""
+
+    def __init__(self) -> None:
+        self.node_registry_service = workflow_node_registry_service
 
     def list_workflows(self, dataset_id: str) -> DatasetWorkflowListResponse:
         """返回指定数据集下的工作流列表。"""
@@ -200,11 +204,14 @@ class DatasetWorkflowService:
         """为指定工作流当前编辑态创建一个新节点。"""
         workflow = self.get_workflow_record(dataset_id, workflow_id)
         now = datetime.now(UTC)
+        node_definition = self.node_registry_service.validate_node_type(
+            payload.node_type
+        )
         node_record = DatasetWorkflowNodeRecord(
             id=uuid4().hex,
             workflow_id=workflow_id,
             node_key=payload.node_key.strip(),
-            node_type=payload.node_type.strip(),
+            node_type=node_definition.key,
             name=payload.name.strip(),
             description=self._normalize_optional_text(payload.description),
             config=dict(payload.config),
