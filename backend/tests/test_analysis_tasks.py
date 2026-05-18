@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.core.exceptions import DatasetAnalysisError
 from app.main import app
 from app.schemas.analysis import DatasetAnalysisPreparedRequest, DatasetAnalysisResult
-from app.services.dataset.analysis.dataset_analysis_r_execution_service import (
+from app.services.resources.analysis.analysis_r_execution_service import (
     DatasetAnalysisRExecutionService,
 )
 

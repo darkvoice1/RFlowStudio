@@ -1,0 +1,6 @@
+{
+  "id": "builtin-analysis",
+  "name": "Builtin Analysis Nodes",
+  "version": "0.1.0",
+  "category": "analysis"
+}

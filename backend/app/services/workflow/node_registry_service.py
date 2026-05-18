@@ -1,7 +1,4 @@
-from app.core.exceptions import (
-    DatasetWorkflowValidationError,
-    WorkflowNodeNotFoundError,
-)
+from app.core.exceptions import WorkflowNodeNotFoundError, WorkflowNodeValidationError
 from app.schemas.workflow_node import (
     WorkflowNodeDefinitionListResponse,
     WorkflowNodeDefinitionResponse,
@@ -10,7 +7,7 @@ from app.schemas.workflow_node import (
 
 
 class WorkflowNodeRegistryService:
-    """维护平台内置节点目录，并负责节点类型归一化。"""
+    """Maintain the built-in workflow node catalog."""
 
     def __init__(self) -> None:
         self._definitions = [
@@ -247,12 +244,10 @@ class WorkflowNodeRegistryService:
         }
 
     def list_node_definitions(self) -> WorkflowNodeDefinitionListResponse:
-        """返回全部节点定义。"""
         items = [definition.model_copy(deep=True) for definition in self._definitions]
         return WorkflowNodeDefinitionListResponse(items=items, total=len(items))
 
     def get_node_definition(self, node_type: str) -> WorkflowNodeDefinitionResponse:
-        """按节点类型或别名读取节点定义。"""
         normalized_node_type = node_type.strip()
         canonical_key = self._alias_to_key.get(normalized_node_type, normalized_node_type)
         definition = self._definitions_by_key.get(canonical_key)
@@ -262,12 +257,11 @@ class WorkflowNodeRegistryService:
         return definition.model_copy(deep=True)
 
     def validate_node_type(self, node_type: str) -> WorkflowNodeDefinitionResponse:
-        """校验节点类型是否已注册，并返回规范定义。"""
         try:
             return self.get_node_definition(node_type)
         except WorkflowNodeNotFoundError as exc:
             normalized_node_type = node_type.strip()
-            raise DatasetWorkflowValidationError(
+            raise WorkflowNodeValidationError(
                 f"节点类型 {normalized_node_type} 未注册。"
             ) from exc
 

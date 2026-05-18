@@ -1,0 +1,6 @@
+{
+  "key": "anova",
+  "name": "方差分析",
+  "category": "analysis",
+  "executor": "executor.py"
+}

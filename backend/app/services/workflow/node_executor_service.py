@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.core.exceptions import DatasetWorkflowValidationError
+from app.core.exceptions import WorkflowNodeValidationError
 from app.schemas.workflow_node import (
     WorkflowNodeDefinitionResponse,
     WorkflowNodeExecutionInput,
@@ -11,7 +11,7 @@ from app.schemas.workflow_node import (
 
 
 class WorkflowNodeExecutor(ABC):
-    """定义所有工作流节点执行器都要遵守的统一接口。"""
+    """Define the shared interface for all workflow node executors."""
 
     definition_key: str
 
@@ -19,14 +19,14 @@ class WorkflowNodeExecutor(ABC):
         self.definition = definition
 
     def validate_config(self, config: dict[str, object]) -> None:
-        """校验节点配置是否满足当前执行器的最小要求。"""
+        """Validate whether node config satisfies executor requirements."""
 
     def validate_inputs(self, payload: WorkflowNodeExecutionInput) -> None:
-        """校验节点输入是否满足当前执行器的最小要求。"""
+        """Validate whether node inputs satisfy executor requirements."""
 
     @abstractmethod
     def execute(self, payload: WorkflowNodeExecutionInput) -> WorkflowNodeExecutionOutput:
-        """执行节点逻辑并返回统一输出结构。"""
+        """Execute node logic and return a normalized output payload."""
 
 
 def require_string_field(
@@ -34,8 +34,8 @@ def require_string_field(
     field_name: str,
     error_prefix: str,
 ) -> str:
-    """提取并校验字符串字段，避免各执行器重复写样板校验。"""
+    """Read and validate a non-empty string field."""
     value = data.get(field_name)
     if not isinstance(value, str) or not value.strip():
-        raise DatasetWorkflowValidationError(f"{error_prefix}必须提供 {field_name}。")
+        raise WorkflowNodeValidationError(f"{error_prefix}必须提供 {field_name}。")
     return value.strip()

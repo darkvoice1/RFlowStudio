@@ -1,0 +1,6 @@
+{
+  "key": "recode_values",
+  "name": "重编码",
+  "category": "cleaning",
+  "executor": "executor.py"
+}

@@ -1,0 +1,6 @@
+{
+  "key": "dataset_preview",
+  "name": "数据预览",
+  "category": "dataset",
+  "executor": "executor.py"
+}

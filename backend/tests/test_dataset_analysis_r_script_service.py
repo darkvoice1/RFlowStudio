@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from app.schemas.analysis import DatasetAnalysisPreparedRequest
 from app.schemas.dataset import DatasetRecord
-from app.services.dataset.analysis.dataset_analysis_r_script_service import (
+from app.services.resources.analysis.analysis_r_script_service import (
     DatasetAnalysisRScriptService,
 )
 

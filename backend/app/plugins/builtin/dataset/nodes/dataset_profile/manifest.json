@@ -1,0 +1,6 @@
+{
+  "key": "dataset_profile",
+  "name": "字段画像",
+  "category": "dataset",
+  "executor": "executor.py"
+}

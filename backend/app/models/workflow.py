@@ -1,31 +1,17 @@
-﻿from datetime import datetime
+from datetime import datetime
 
-from sqlalchemy import (
-    JSON,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
-class DatasetWorkflowModel(Base):
-    """定义数据集工作流主表。"""
+class WorkflowDefinitionModel(Base):
+    """Define the platform-level workflow record."""
 
-    __tablename__ = "dataset_workflows"
+    __tablename__ = "workflow_definitions"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    dataset_id: Mapped[str] = mapped_column(
-        String(32),
-        ForeignKey("dataset_records.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -33,48 +19,18 @@ class DatasetWorkflowModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class DatasetWorkflowVersionModel(Base):
-    """定义数据集工作流版本表。"""
+class WorkflowDefinitionNodeModel(Base):
+    """Define the platform-level workflow node record."""
 
-    __tablename__ = "dataset_workflow_versions"
+    __tablename__ = "workflow_definition_nodes"
     __table_args__ = (
-        UniqueConstraint("workflow_id", "version_number", name="uq_dataset_workflow_version"),
+        UniqueConstraint("workflow_id", "node_key", name="uq_workflow_definition_node_key"),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     workflow_id: Mapped[str] = mapped_column(
         String(32),
-        ForeignKey("dataset_workflows.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    nodes_snapshot: Mapped[list[dict[str, object]]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=list,
-    )
-    edges_snapshot: Mapped[list[dict[str, object]]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=list,
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class DatasetWorkflowNodeModel(Base):
-    """定义数据集工作流节点表。"""
-
-    __tablename__ = "dataset_workflow_nodes"
-    __table_args__ = (
-        UniqueConstraint("workflow_id", "node_key", name="uq_dataset_workflow_node_key"),
-    )
-
-    id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    workflow_id: Mapped[str] = mapped_column(
-        String(32),
-        ForeignKey("dataset_workflows.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definitions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -89,34 +45,34 @@ class DatasetWorkflowNodeModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class DatasetWorkflowEdgeModel(Base):
-    """定义数据集工作流连线表。"""
+class WorkflowDefinitionEdgeModel(Base):
+    """Define the platform-level workflow edge record."""
 
-    __tablename__ = "dataset_workflow_edges"
+    __tablename__ = "workflow_definition_edges"
     __table_args__ = (
-        UniqueConstraint("workflow_id", "edge_key", name="uq_dataset_workflow_edge_key"),
+        UniqueConstraint("workflow_id", "edge_key", name="uq_workflow_definition_edge_key"),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     workflow_id: Mapped[str] = mapped_column(
         String(32),
-        ForeignKey("dataset_workflows.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definitions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     edge_key: Mapped[str] = mapped_column(String(64), nullable=False)
     source_node_id: Mapped[str] = mapped_column(
         String(32),
-        ForeignKey("dataset_workflow_nodes.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definition_nodes.id", ondelete="CASCADE"),
         nullable=False,
     )
     target_node_id: Mapped[str] = mapped_column(
         String(32),
-        ForeignKey("dataset_workflow_nodes.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definition_nodes.id", ondelete="CASCADE"),
         nullable=False,
     )
-    source_handle: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    target_handle: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_port: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_port: Mapped[str | None] = mapped_column(String(64), nullable=True)
     config: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

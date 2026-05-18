@@ -1,0 +1,6 @@
+{
+  "key": "sort_rows",
+  "name": "排序",
+  "category": "cleaning",
+  "executor": "executor.py"
+}

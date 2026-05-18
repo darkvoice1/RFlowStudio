@@ -1,0 +1,1 @@
+"""Report resource services."""

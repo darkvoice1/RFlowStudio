@@ -9,10 +9,10 @@ from app.schemas.analysis import (
     DatasetAnalysisResult,
     DatasetAnalysisSummary,
 )
-from app.services.dataset.analysis.dataset_analysis_execution_service import (
+from app.services.resources.analysis.analysis_execution_service import (
     DatasetAnalysisExecutionService,
 )
-from app.services.dataset.analysis.dataset_analysis_r_execution_service import (
+from app.services.resources.analysis.analysis_r_execution_service import (
     DatasetAnalysisRExecutionService,
 )
 

@@ -1,42 +1,42 @@
 class DatasetUploadError(Exception):
-    """表示数据集上传过程中的业务错误。"""
+    """Raised when dataset upload validation or storage fails."""
 
 
 class DatasetNotFoundError(Exception):
-    """表示请求的数据集不存在。"""
+    """Raised when the requested dataset does not exist."""
 
 
 class DatasetPreviewError(Exception):
-    """表示数据集预览过程中的业务错误。"""
+    """Raised when building a dataset preview fails."""
 
 
 class DatasetCleaningError(Exception):
-    """表示数据清洗步骤配置或执行过程中的业务错误。"""
+    """Raised when dataset cleaning configuration or execution fails."""
 
 
 class DatasetAnalysisError(Exception):
-    """表示统计分析任务配置或执行过程中的业务错误。"""
+    """Raised when dataset analysis configuration or execution fails."""
 
 
 class DatasetAnalysisRecordNotFoundError(Exception):
-    """表示请求的统计分析历史记录不存在。"""
+    """Raised when the requested analysis record does not exist."""
 
 
-class DatasetWorkflowNotFoundError(Exception):
-    """表示请求的数据集工作流不存在。"""
-
-
-class DatasetWorkflowValidationError(Exception):
-    """表示工作流节点类型或配置校验失败。"""
+class WorkflowNodeValidationError(Exception):
+    """Raised when workflow node configuration or node-type validation fails."""
 
 
 class WorkflowNodeNotFoundError(Exception):
-    """表示请求的工作流节点定义不存在。"""
+    """Raised when the requested workflow node definition does not exist."""
 
 
-class WorkflowNodeExecutionError(Exception):
-    """表示工作流节点执行器未接入或执行过程失败。"""
+class WorkflowDefinitionNotFoundError(Exception):
+    """Raised when the requested platform workflow definition does not exist."""
+
+
+class WorkflowDefinitionValidationError(Exception):
+    """Raised when a platform workflow graph fails validation."""
 
 
 class TaskNotFoundError(Exception):
-    """表示请求的异步任务不存在。"""
+    """Raised when the requested asynchronous task does not exist."""

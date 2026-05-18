@@ -1,0 +1,6 @@
+{
+  "key": "r_script",
+  "name": "R 脚本",
+  "category": "script",
+  "executor": "executor.py"
+}

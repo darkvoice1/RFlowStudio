@@ -1,4 +1,4 @@
-from app.core.exceptions import DatasetWorkflowValidationError
+from app.core.exceptions import WorkflowNodeValidationError
 from app.schemas.dataset import DatasetDetailResponse
 from app.schemas.workflow_node import (
     WorkflowNodeExecutionInput,
@@ -11,7 +11,7 @@ from app.services.workflow.node_executor_service import (
 
 
 class DatasetInputNodeExecutor(WorkflowNodeExecutor):
-    """把现有数据集包装成工作流起点节点。"""
+    """Wrap the current dataset as a workflow input node."""
 
     definition_key = "dataset_input"
 
@@ -22,13 +22,13 @@ class DatasetInputNodeExecutor(WorkflowNodeExecutor):
     def validate_config(self, config: dict[str, object]) -> None:
         source = require_string_field(config, "source", "数据输入节点配置")
         if source != "current_dataset":
-            raise DatasetWorkflowValidationError(
+            raise WorkflowNodeValidationError(
                 "数据输入节点当前仅支持 source=current_dataset。"
             )
 
     def validate_inputs(self, payload: WorkflowNodeExecutionInput) -> None:
         if payload.input_values:
-            raise DatasetWorkflowValidationError(
+            raise WorkflowNodeValidationError(
                 "数据输入节点作为起点节点，当前不接受上游输入。"
             )
 
@@ -54,5 +54,5 @@ class DatasetInputNodeExecutor(WorkflowNodeExecutor):
     def _load_dataset_detail(self, dataset_id: str) -> DatasetDetailResponse:
         detail = self.dataset_detail_loader(dataset_id)
         if not isinstance(detail, DatasetDetailResponse):
-            raise DatasetWorkflowValidationError("数据输入节点未能读取到合法的数据集详情。")
+            raise WorkflowNodeValidationError("数据输入节点未能读取到合法的数据集详情。")
         return detail

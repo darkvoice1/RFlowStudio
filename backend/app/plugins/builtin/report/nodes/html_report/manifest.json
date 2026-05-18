@@ -1,0 +1,6 @@
+{
+  "key": "html_report",
+  "name": "HTML 报告",
+  "category": "report",
+  "executor": "executor.py"
+}

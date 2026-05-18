@@ -1,0 +1,6 @@
+{
+  "key": "dataset_input",
+  "name": "数据输入",
+  "category": "dataset",
+  "executor": "executor.py"
+}

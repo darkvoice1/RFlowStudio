@@ -1,0 +1,6 @@
+{
+  "key": "correlation_analysis",
+  "name": "相关分析",
+  "category": "analysis",
+  "executor": "executor.py"
+}

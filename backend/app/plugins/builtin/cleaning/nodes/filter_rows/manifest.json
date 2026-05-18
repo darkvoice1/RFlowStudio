@@ -1,0 +1,6 @@
+{
+  "key": "filter_rows",
+  "name": "筛选行",
+  "category": "cleaning",
+  "executor": "executor.py"
+}

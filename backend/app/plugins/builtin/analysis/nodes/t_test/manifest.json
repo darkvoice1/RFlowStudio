@@ -1,0 +1,6 @@
+{
+  "key": "t_test",
+  "name": "T 检验",
+  "category": "analysis",
+  "executor": "executor.py"
+}

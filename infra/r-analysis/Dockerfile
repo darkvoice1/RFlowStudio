@@ -11,7 +11,7 @@ RUN Rscript -e "install.packages(c('jsonlite', 'plumber'), repos='https://cloud.
 
 WORKDIR /opt/rflow/r-analysis
 
-COPY backend/app/services/dataset/analysis/r /opt/rflow/r-analysis
+COPY backend/app/services/resources/analysis/r /opt/rflow/r-analysis
 
 EXPOSE 8090
 

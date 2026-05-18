@@ -1,0 +1,6 @@
+{
+  "key": "descriptive_statistics",
+  "name": "描述统计",
+  "category": "analysis",
+  "executor": "executor.py"
+}
