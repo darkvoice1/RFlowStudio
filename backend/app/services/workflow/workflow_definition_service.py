@@ -94,6 +94,16 @@ class WorkflowDefinitionService:
         self._touch_workflow(workflow)
         return self._to_node_response(record)
 
+    def get_workflow_node(
+        self,
+        workflow_id: str,
+        node_id: str,
+    ) -> WorkflowDefinitionNodeResponse:
+        """返回单个工作流节点详情。"""
+        self.store.get_workflow_record(workflow_id)
+        record = self.store.get_node_record(workflow_id, node_id)
+        return self._to_node_response(record)
+
     def list_workflow_edges(
         self,
         workflow_id: str,

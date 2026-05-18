@@ -44,9 +44,27 @@ class WorkflowNodeExecutionInput(BaseModel):
     input_values: dict[str, Any] = Field(default_factory=dict)
 
 
+class WorkflowNodeExecutionRequest(BaseModel):
+    """定义节点执行接口请求结构。"""
+
+    input_values: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class WorkflowNodeExecutionOutput(BaseModel):
     """定义节点执行器统一输出结构。"""
 
+    output_values: dict[str, Any] = Field(default_factory=dict)
+    artifacts: dict[str, Any] = Field(default_factory=dict)
+    summary: str | None = None
+
+
+class WorkflowNodeExecutionResponse(BaseModel):
+    """定义节点执行接口响应结构。"""
+
+    workflow_id: str
+    node_id: str
+    node_type: str
     output_values: dict[str, Any] = Field(default_factory=dict)
     artifacts: dict[str, Any] = Field(default_factory=dict)
     summary: str | None = None

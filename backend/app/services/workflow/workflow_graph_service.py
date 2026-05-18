@@ -25,8 +25,9 @@ class WorkflowGraphService:
     ) -> tuple[list[WorkflowDefinitionNodePayload], list[WorkflowDefinitionEdgePayload]]:
         normalized_nodes = self.normalize_nodes(nodes)
         node_map = {node.id: node for node in normalized_nodes if node.id is not None}
+        topology_edges = self._normalize_topology_edges(edges, node_map=node_map)
+        self._ensure_acyclic(normalized_nodes, topology_edges)
         normalized_edges = self.normalize_edges(edges, node_map=node_map)
-        self._ensure_acyclic(normalized_nodes, normalized_edges)
         return normalized_nodes, normalized_edges
 
     def normalize_nodes(
@@ -136,6 +137,46 @@ class WorkflowGraphService:
                 f"边 edge_key {normalized_edge.edge_key} 重复。",
             )
             normalized_edges.append(normalized_edge)
+
+        return normalized_edges
+
+    def _normalize_topology_edges(
+        self,
+        edges: list[WorkflowDefinitionEdgePayload],
+        *,
+        node_map: dict[str, WorkflowDefinitionNodePayload],
+    ) -> list[WorkflowDefinitionEdgePayload]:
+        normalized_edges: list[WorkflowDefinitionEdgePayload] = []
+        edge_ids: set[str] = set()
+        edge_keys: set[str] = set()
+
+        for edge in edges:
+            normalized_id = self._normalize_optional_identifier(edge.id, "边 id")
+            normalized_key = self._normalize_required_text(edge.edge_key, "边 edge_key")
+            source_node_id = self._normalize_required_text(edge.source_node_id, "source_node_id")
+            target_node_id = self._normalize_required_text(edge.target_node_id, "target_node_id")
+
+            if source_node_id not in node_map or target_node_id not in node_map:
+                raise WorkflowDefinitionValidationError("边连接的节点不存在于当前工作流图中。")
+
+            if normalized_id is not None:
+                self._ensure_unique(edge_ids, normalized_id, f"边 id {normalized_id} 重复。")
+            self._ensure_unique(
+                edge_keys,
+                normalized_key,
+                f"边 edge_key {normalized_key} 重复。",
+            )
+            normalized_edges.append(
+                edge.model_copy(
+                    update={
+                        "id": normalized_id,
+                        "edge_key": normalized_key,
+                        "source_node_id": source_node_id,
+                        "target_node_id": target_node_id,
+                        "config": dict(edge.config),
+                    }
+                )
+            )
 
         return normalized_edges
 
