@@ -1,16 +1,6 @@
-"""Analysis resource services."""
+"""Analysis resource service package.
 
-from .analysis_execution_service import DatasetAnalysisExecutionService
-from .analysis_r_execution_service import DatasetAnalysisRExecutionService
-from .analysis_r_script_service import DatasetAnalysisRScriptService
-from .analysis_report_service import DatasetAnalysisReportService
-from .analysis_resource_service import DatasetAnalysisResourceService, DatasetAnalysisService
-
-__all__ = [
-    "DatasetAnalysisExecutionService",
-    "DatasetAnalysisRExecutionService",
-    "DatasetAnalysisRScriptService",
-    "DatasetAnalysisReportService",
-    "DatasetAnalysisResourceService",
-    "DatasetAnalysisService",
-]
+Keep package initialization lightweight to avoid circular imports during
+submodule loading. Import concrete services from their module files instead of
+re-exporting them here.
+"""

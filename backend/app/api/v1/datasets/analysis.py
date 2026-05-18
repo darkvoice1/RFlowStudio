@@ -15,7 +15,7 @@ from app.schemas.analysis import (
     DatasetAnalysisScriptResponse,
 )
 from app.schemas.task import TaskResponse
-from app.services.resources.datasets import dataset_service
+from app.services.resources.datasets.dataset_resource_service import dataset_service
 
 router = APIRouter()
 

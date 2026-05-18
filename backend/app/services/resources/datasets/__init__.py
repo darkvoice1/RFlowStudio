@@ -1,3 +1,6 @@
-from .dataset_resource_service import DatasetResourceService, DatasetService, dataset_service
+"""Dataset resource service package.
 
-__all__ = ["DatasetResourceService", "DatasetService", "dataset_service"]
+Keep package initialization lightweight to avoid circular imports during
+submodule loading. Import concrete services from their module files instead of
+re-exporting them here.
+"""
