@@ -1,2 +1,1 @@
-"""Schema package placeholder."""
-
+"""协议模型包。"""

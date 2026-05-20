@@ -11,6 +11,7 @@ WorkflowNodeCategory = Literal[
     "output",
 ]
 WorkflowNodeExecutorKind = Literal["builtin", "script", "analysis", "report"]
+WorkflowNodeSource = Literal["builtin", "plugin"]
 
 
 class WorkflowNodePortSchema(BaseModel):
@@ -82,6 +83,8 @@ class WorkflowNodeDefinitionResponse(BaseModel):
     config_schema: dict[str, Any] = Field(default_factory=dict)
     input_schema: list[WorkflowNodePortSchema] = Field(default_factory=list)
     output_schema: list[WorkflowNodePortSchema] = Field(default_factory=list)
+    source: WorkflowNodeSource = "builtin"
+    plugin_id: str | None = None
 
 
 class WorkflowNodeDefinitionListResponse(BaseModel):

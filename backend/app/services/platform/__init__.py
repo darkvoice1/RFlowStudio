@@ -1,1 +1,1 @@
-"""Platform services for plugin loading and marketplace integration."""
+"""平台服务包。"""

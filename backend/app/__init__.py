@@ -1,2 +1,1 @@
-"""Backend application package."""
-
+"""新后端应用主包。"""

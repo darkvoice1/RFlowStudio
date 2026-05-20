@@ -1,2 +1,1 @@
-"""Service package placeholder."""
-
+"""服务层包。"""

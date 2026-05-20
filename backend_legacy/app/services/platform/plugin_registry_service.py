@@ -41,6 +41,14 @@ class PluginRegistryService:
         items = [self._to_plugin_response(model) for model in models]
         return PluginListResponse(items=items, total=len(items))
 
+    def list_enabled_plugins(self) -> list[PluginResponse]:
+        """返回当前处于启用状态的单节点插件列表。"""
+        return [
+            plugin
+            for plugin in self.list_plugins().items
+            if plugin.status == "enabled"
+        ]
+
     def get_plugin(self, plugin_id: str) -> PluginDetailResponse:
         """返回单个节点插件详情。"""
         with session_scope() as session:

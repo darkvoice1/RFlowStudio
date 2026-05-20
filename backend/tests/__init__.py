@@ -1,2 +1,1 @@
-"""Test package placeholder."""
-
+"""测试包。"""

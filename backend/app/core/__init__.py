@@ -1,2 +1,1 @@
-"""Core backend configuration."""
-
+"""核心配置与异常包。"""
