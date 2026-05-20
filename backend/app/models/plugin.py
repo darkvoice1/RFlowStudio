@@ -16,5 +16,8 @@ class PluginModel(Base):
     version: Mapped[str] = mapped_column(String(64), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
     entry_path: Mapped[str] = mapped_column(Text, nullable=False)
+    executor: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="enabled")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="builtin")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

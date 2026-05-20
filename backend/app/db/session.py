@@ -70,6 +70,7 @@ def initialize_database() -> None:
             DatasetCleaningStepModel,
             DatasetRecordModel,
         )
+        from app.models.plugin import PluginModel  # noqa: F401
         from app.models.workflow import (  # noqa: F401
             WorkflowDefinitionEdgeModel,
             WorkflowDefinitionModel,
