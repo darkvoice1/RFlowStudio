@@ -6,12 +6,16 @@ on:
       - main
     paths:
       - "backend/**"
+      - "backend_legacy/**"
+      - "infra/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     branches:
       - main
     paths:
       - "backend/**"
+      - "backend_legacy/**"
+      - "infra/**"
       - ".github/workflows/backend-ci.yml"
   workflow_dispatch:
 
@@ -40,7 +44,7 @@ jobs:
 
       # 先做静态检查，尽早发现导入顺序和语法类问题。
       - name: Run Ruff
-        run: python -m ruff check backend
+        run: python -m ruff check backend backend_legacy
 
       # 再执行后端测试，验证当前数据接入链路和接口行为。
       - name: Run Pytest
