@@ -1,5 +1,6 @@
 """数据库引擎与会话管理。"""
 
+import importlib
 from collections.abc import Generator
 from contextlib import contextmanager
 from threading import Lock
@@ -56,6 +57,8 @@ def get_engine() -> Engine:
 
 def initialize_database() -> None:
     """初始化当前阶段已有的数据库结构。"""
+    # 先导入模型包，确保所有 ORM 模型已经注册到元数据。
+    importlib.import_module("app.models")
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
 
