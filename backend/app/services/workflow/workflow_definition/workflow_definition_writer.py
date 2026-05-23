@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from sqlalchemy import delete
+
 from app.db.session import session_scope
 from app.models.workflow import (
     WorkflowDefinitionEdgeModel,
@@ -36,6 +38,19 @@ class WorkflowDefinitionWriter:
 
         return record
 
+    def update_workflow(self, record: WorkflowDefinitionRecord) -> None:
+        """更新工作流基础信息。"""
+        with session_scope() as session:
+            model = session.get(WorkflowDefinitionModel, record.id)
+            if model is None:
+                return
+
+            model.name = record.name
+            model.description = record.description
+            model.status = record.status
+            model.created_at = record.created_at
+            model.updated_at = record.updated_at
+
     def save_workflow_node(self, record: WorkflowDefinitionNodeRecord) -> None:
         """保存工作流节点记录。"""
         with session_scope() as session:
@@ -45,6 +60,27 @@ class WorkflowDefinitionWriter:
         """保存工作流连线记录。"""
         with session_scope() as session:
             session.add(self._to_edge_model(record))
+
+    def replace_workflow_graph(
+        self,
+        workflow_id: str,
+        nodes: list[WorkflowDefinitionNodeRecord],
+        edges: list[WorkflowDefinitionEdgeRecord],
+    ) -> None:
+        """整批替换某条工作流下的节点和连线。"""
+        with session_scope() as session:
+            session.execute(
+                delete(WorkflowDefinitionEdgeModel).where(
+                    WorkflowDefinitionEdgeModel.workflow_id == workflow_id
+                )
+            )
+            session.execute(
+                delete(WorkflowDefinitionNodeModel).where(
+                    WorkflowDefinitionNodeModel.workflow_id == workflow_id
+                )
+            )
+            session.add_all([self._to_node_model(record) for record in nodes])
+            session.add_all([self._to_edge_model(record) for record in edges])
 
     def _to_workflow_model(self, record: WorkflowDefinitionRecord) -> WorkflowDefinitionModel:
         """把统一记录对象转回 ORM 工作流模型。"""

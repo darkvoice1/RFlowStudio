@@ -44,6 +44,17 @@ class WorkflowDefinitionReader:
             return None
         return self._to_workflow_record(model)
 
+    def get_workflow_by_name(self, name: str) -> WorkflowDefinitionRecord | None:
+        """按名称读取单条工作流定义。"""
+        with session_scope() as session:
+            model = session.scalar(
+                select(WorkflowDefinitionModel).where(WorkflowDefinitionModel.name == name)
+            )
+
+        if model is None:
+            return None
+        return self._to_workflow_record(model)
+
     def list_workflow_nodes(self, workflow_id: str) -> list[WorkflowDefinitionNodeRecord]:
         """读取某条工作流下的全部节点。"""
         with session_scope() as session:
