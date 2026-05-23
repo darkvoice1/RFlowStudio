@@ -1,0 +1,29 @@
+{
+  "key": "dataset_profile",
+  "name": "数据概览",
+  "category": "inspection",
+  "description": "查看当前数据集的字段统计和基础画像信息。",
+  "aliases": ["profile", "data_profile"],
+  "executor_kind": "builtin",
+  "config_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": true
+  },
+  "input_schema": [
+    {
+      "key": "dataset_ref",
+      "name": "数据引用",
+      "data_type": "dataset",
+      "required": true
+    }
+  ],
+  "output_schema": [
+    {
+      "key": "profile_result",
+      "name": "数据概览结果",
+      "data_type": "profile",
+      "required": true
+    }
+  ]
+}

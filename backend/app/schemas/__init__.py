@@ -1,5 +1,6 @@
 """协议模型包。"""
 
+from app.schemas.plugin import PluginManifestRecord
 from app.schemas.workflow_definition import (
     WorkflowDefinitionCreateRequest,
     WorkflowDefinitionDetailResponse,
@@ -16,8 +17,14 @@ from app.schemas.workflow_definition import (
     WorkflowDefinitionRecord,
     WorkflowDefinitionResponse,
 )
+from app.schemas.workflow_node import (
+    WorkflowNodeDefinitionListResponse,
+    WorkflowNodeDefinitionResponse,
+    WorkflowNodePortSchema,
+)
 
 __all__ = [
+    "PluginManifestRecord",
     "WorkflowDefinitionCreateRequest",
     "WorkflowDefinitionGraphUpdateRequest",
     "WorkflowDefinitionNodePayload",
@@ -32,4 +39,7 @@ __all__ = [
     "WorkflowDefinitionEdgeResponse",
     "WorkflowDefinitionEdgeListResponse",
     "WorkflowDefinitionDetailResponse",
+    "WorkflowNodePortSchema",
+    "WorkflowNodeDefinitionResponse",
+    "WorkflowNodeDefinitionListResponse",
 ]

@@ -1,0 +1,28 @@
+{
+  "key": "dataset_input",
+  "name": "数据输入",
+  "category": "input",
+  "description": "从数据集资源或其他数据源引入数据，作为工作流起点。",
+  "aliases": ["input", "source_dataset"],
+  "executor_kind": "builtin",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string",
+        "title": "数据来源"
+      }
+    },
+    "required": ["source"],
+    "additionalProperties": true
+  },
+  "input_schema": [],
+  "output_schema": [
+    {
+      "key": "dataset_ref",
+      "name": "数据引用",
+      "data_type": "dataset",
+      "required": true
+    }
+  ]
+}
