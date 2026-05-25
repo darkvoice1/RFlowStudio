@@ -1,40 +1,40 @@
-"""工作流执行层应用服务。"""
+"""工作流计划层应用服务。"""
 
 from app.core.exceptions import ResourceNotFoundError, ValidationError
 from app.schemas.workflow_definition import WorkflowDefinitionNodeRecord
-from app.schemas.workflow_execution_plan import WorkflowExecutionPlanResponse
 from app.schemas.workflow_node import WorkflowNodeDefinitionResponse
+from app.schemas.workflow_plan import WorkflowExecutionPlanResponse
 from app.services.workflow.node_registry_service import WorkflowNodeRegistryService
 from app.services.workflow.workflow_definition.workflow_definition_reader import (
     WorkflowDefinitionReader,
 )
-from app.services.workflow.workflow_execution.workflow_execution_builder import (
-    WorkflowExecutionBuilder,
+from app.services.workflow.workflow_plan.workflow_plan_builder import (
+    WorkflowPlanBuilder,
 )
-from app.services.workflow.workflow_execution.workflow_execution_planner import (
-    WorkflowExecutionPlanner,
+from app.services.workflow.workflow_plan.workflow_plan_planner import (
+    WorkflowPlanPlanner,
 )
-from app.services.workflow.workflow_execution.workflow_execution_validator import (
-    WorkflowExecutionValidator,
+from app.services.workflow.workflow_plan.workflow_plan_validator import (
+    WorkflowPlanValidator,
 )
 
 
-class WorkflowExecutionService:
-    """协调工作流执行层的最小业务动作。"""
+class WorkflowPlanService:
+    """协调工作流计划层的最小业务动作。"""
 
     def __init__(
         self,
         reader: WorkflowDefinitionReader | None = None,
         node_registry_service: WorkflowNodeRegistryService | None = None,
-        validator: WorkflowExecutionValidator | None = None,
-        planner: WorkflowExecutionPlanner | None = None,
-        builder: WorkflowExecutionBuilder | None = None,
+        validator: WorkflowPlanValidator | None = None,
+        planner: WorkflowPlanPlanner | None = None,
+        builder: WorkflowPlanBuilder | None = None,
     ) -> None:
         self.reader = reader or WorkflowDefinitionReader()
         self.node_registry_service = node_registry_service or WorkflowNodeRegistryService()
-        self.validator = validator or WorkflowExecutionValidator()
-        self.planner = planner or WorkflowExecutionPlanner()
-        self.builder = builder or WorkflowExecutionBuilder()
+        self.validator = validator or WorkflowPlanValidator()
+        self.planner = planner or WorkflowPlanPlanner()
+        self.builder = builder or WorkflowPlanBuilder()
 
     def build_workflow_plan(self, workflow_id: str) -> WorkflowExecutionPlanResponse:
         """读取指定工作流并生成稳定执行计划。"""

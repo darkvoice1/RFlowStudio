@@ -1,4 +1,4 @@
-"""工作流执行层校验器。"""
+"""工作流计划层校验器。"""
 
 from app.core.exceptions import ResourceNotFoundError, ValidationError
 from app.schemas.workflow_definition import (
@@ -9,12 +9,12 @@ from app.schemas.workflow_node import (
     WorkflowNodeDefinitionResponse,
     WorkflowNodePortSchema,
 )
-from app.services.workflow.workflow_execution.workflow_execution_builder import (
+from app.services.workflow.workflow_plan.workflow_plan_builder import (
     WorkflowPlanEdgeContext,
 )
 
 
-class WorkflowExecutionValidator:
+class WorkflowPlanValidator:
     """负责执行计划生成阶段的图校验和端口解析。"""
 
     def normalize_edges(

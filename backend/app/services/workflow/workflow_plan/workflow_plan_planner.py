@@ -1,13 +1,13 @@
-"""工作流执行层计划器。"""
+"""工作流计划层计划器。"""
 
 from app.core.exceptions import ValidationError
 from app.schemas.workflow_definition import WorkflowDefinitionNodeRecord
-from app.services.workflow.workflow_execution.workflow_execution_builder import (
+from app.services.workflow.workflow_plan.workflow_plan_builder import (
     WorkflowPlanEdgeContext,
 )
 
 
-class WorkflowExecutionPlanner:
+class WorkflowPlanPlanner:
     """负责生成拓扑顺序和起始节点集合。"""
 
     def build_topological_order(

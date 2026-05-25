@@ -11,7 +11,7 @@ from app.services.workflow.workflow_definition import (
     WorkflowDefinitionValidator,
     WorkflowDefinitionWriter,
 )
-from app.services.workflow.workflow_execution import WorkflowExecutionService
+from app.services.workflow.workflow_plan import WorkflowPlanService
 
 __all__ = [
     "WorkflowDefinitionBuilder",
@@ -19,7 +19,7 @@ __all__ = [
     "WorkflowDefinitionValidator",
     "WorkflowDefinitionWriter",
     "WorkflowDefinitionService",
-    "WorkflowExecutionService",
+    "WorkflowPlanService",
     "WorkflowNodeRegistryService",
     "workflow_node_registry_service",
 ]

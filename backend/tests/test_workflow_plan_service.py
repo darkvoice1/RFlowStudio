@@ -13,16 +13,16 @@ from app.services.platform import PluginLoaderService, PluginRegistryService
 from app.services.workflow import (
     WorkflowDefinitionService,
     WorkflowDefinitionWriter,
-    WorkflowExecutionService,
     WorkflowNodeRegistryService,
+    WorkflowPlanService,
 )
 
 
-def test_workflow_execution_service_can_build_two_node_plan() -> None:
-    """验证执行计划服务可以生成两节点 DAG 的拓扑顺序。"""
+def test_workflow_plan_service_can_build_two_node_plan() -> None:
+    """验证计划服务可以生成两节点 DAG 的拓扑顺序。"""
     definition_service = WorkflowDefinitionService()
     writer = WorkflowDefinitionWriter()
-    execution_service = WorkflowExecutionService()
+    plan_service = WorkflowPlanService()
 
     workflow = definition_service.create_workflow(
         WorkflowDefinitionCreateRequest(name="Plan Flow", description="plan test")
@@ -73,7 +73,7 @@ def test_workflow_execution_service_can_build_two_node_plan() -> None:
         ],
     )
 
-    plan = execution_service.build_workflow_plan(workflow.id)
+    plan = plan_service.build_workflow_plan(workflow.id)
 
     assert plan.workflow_id == workflow.id
     assert plan.start_node_ids == ["node_input"]
@@ -82,11 +82,11 @@ def test_workflow_execution_service_can_build_two_node_plan() -> None:
     assert plan.steps[1].incoming_bindings[0].edge_key == "input_to_preview"
 
 
-def test_workflow_execution_service_rejects_missing_required_input() -> None:
+def test_workflow_plan_service_rejects_missing_required_input() -> None:
     """验证缺少必需输入端口的工作流无法生成执行计划。"""
     definition_service = WorkflowDefinitionService()
     writer = WorkflowDefinitionWriter()
-    execution_service = WorkflowExecutionService()
+    plan_service = WorkflowPlanService()
 
     workflow = definition_service.create_workflow(
         WorkflowDefinitionCreateRequest(name="Broken Plan", description="missing input")
@@ -112,10 +112,10 @@ def test_workflow_execution_service_rejects_missing_required_input() -> None:
     )
 
     with pytest.raises(ValidationError, match="缺少必需输入端口"):
-        execution_service.build_workflow_plan(workflow.id)
+        plan_service.build_workflow_plan(workflow.id)
 
 
-def test_workflow_execution_service_rejects_port_type_mismatch(tmp_path: Path) -> None:
+def test_workflow_plan_service_rejects_port_type_mismatch(tmp_path: Path) -> None:
     """验证端口数据类型不兼容时会拒绝生成执行计划。"""
     node_registry_service = _build_registry_with_plugin_node(
         tmp_path,
@@ -125,7 +125,7 @@ def test_workflow_execution_service_rejects_port_type_mismatch(tmp_path: Path) -
     )
     definition_service = WorkflowDefinitionService()
     writer = WorkflowDefinitionWriter()
-    execution_service = WorkflowExecutionService(
+    plan_service = WorkflowPlanService(
         node_registry_service=node_registry_service
     )
 
@@ -179,10 +179,10 @@ def test_workflow_execution_service_rejects_port_type_mismatch(tmp_path: Path) -
     )
 
     with pytest.raises(ValidationError, match="端口类型不匹配"):
-        execution_service.build_workflow_plan(workflow.id)
+        plan_service.build_workflow_plan(workflow.id)
 
 
-def test_workflow_execution_service_rejects_cycle(tmp_path: Path) -> None:
+def test_workflow_plan_service_rejects_cycle(tmp_path: Path) -> None:
     """验证存在环的工作流图无法生成执行计划。"""
     node_registry_service = _build_registry_with_plugin_node(
         tmp_path,
@@ -192,7 +192,7 @@ def test_workflow_execution_service_rejects_cycle(tmp_path: Path) -> None:
     )
     definition_service = WorkflowDefinitionService()
     writer = WorkflowDefinitionWriter()
-    execution_service = WorkflowExecutionService(
+    plan_service = WorkflowPlanService(
         node_registry_service=node_registry_service
     )
 
@@ -258,7 +258,7 @@ def test_workflow_execution_service_rejects_cycle(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValidationError, match="存在环"):
-        execution_service.build_workflow_plan(workflow.id)
+        plan_service.build_workflow_plan(workflow.id)
 
 
 def _build_registry_with_plugin_node(

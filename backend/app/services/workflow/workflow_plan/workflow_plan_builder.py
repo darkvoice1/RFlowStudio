@@ -1,11 +1,11 @@
-"""工作流执行计划构造器。"""
+"""工作流计划构造器。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from app.schemas.workflow_definition import WorkflowDefinitionNodeRecord
-from app.schemas.workflow_execution_plan import (
+from app.schemas.workflow_plan import (
     WorkflowExecutionPlanEdgeBinding,
     WorkflowExecutionPlanResponse,
     WorkflowExecutionPlanStep,
@@ -14,7 +14,7 @@ from app.schemas.workflow_execution_plan import (
 
 @dataclass(frozen=True)
 class WorkflowPlanEdgeContext:
-    """保存执行计划阶段使用的规范化连线信息。"""
+    """保存计划生成阶段使用的规范化连线信息。"""
 
     edge_id: str
     edge_key: str
@@ -24,8 +24,8 @@ class WorkflowPlanEdgeContext:
     target_port: str
 
 
-class WorkflowExecutionBuilder:
-    """负责把拓扑顺序和连线信息组装成执行计划对象。"""
+class WorkflowPlanBuilder:
+    """负责把拓扑顺序和连线信息组装成计划对象。"""
 
     def build_plan_response(
         self,

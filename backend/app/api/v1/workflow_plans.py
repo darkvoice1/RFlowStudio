@@ -3,11 +3,11 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.exceptions import ResourceNotFoundError, ValidationError
-from app.schemas.workflow_execution_plan import WorkflowExecutionPlanResponse
-from app.services.workflow import WorkflowExecutionService
+from app.schemas.workflow_plan import WorkflowExecutionPlanResponse
+from app.services.workflow import WorkflowPlanService
 
 router = APIRouter(prefix="/workflows", tags=["workflow-plans"])
-service = WorkflowExecutionService()
+service = WorkflowPlanService()
 
 
 @router.get(
