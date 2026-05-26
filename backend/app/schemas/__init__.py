@@ -17,6 +17,12 @@ from app.schemas.workflow_definition import (
     WorkflowDefinitionRecord,
     WorkflowDefinitionResponse,
 )
+from app.schemas.workflow_execution_run import (
+    WorkflowExecutionFailure,
+    WorkflowExecutionRunRequest,
+    WorkflowExecutionRunResponse,
+    WorkflowExecutionStepResult,
+)
 from app.schemas.workflow_node import (
     WorkflowNodeDefinitionListResponse,
     WorkflowNodeDefinitionResponse,
@@ -47,6 +53,10 @@ __all__ = [
     "WorkflowExecutionPlanEdgeBinding",
     "WorkflowExecutionPlanStep",
     "WorkflowExecutionPlanResponse",
+    "WorkflowExecutionRunRequest",
+    "WorkflowExecutionStepResult",
+    "WorkflowExecutionFailure",
+    "WorkflowExecutionRunResponse",
     "WorkflowNodePortSchema",
     "WorkflowNodeDefinitionResponse",
     "WorkflowNodeDefinitionListResponse",
