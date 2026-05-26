@@ -66,4 +66,6 @@ def test_workflow_execution_api_can_run_two_node_workflow() -> None:
     assert run_response.status_code == 200
     assert run_response.json()["status"] == "succeeded"
     assert run_response.json()["succeeded_steps"] == 2
-    assert run_response.json()["final_outputs"]["node_2"]["preview_table"]["limit"] == 2
+    assert run_response.json()["steps"][0]["outputs"][0]["payload_kind"] == "reference"
+    assert run_response.json()["steps"][1]["outputs"][0]["payload_kind"] == "value"
+    assert run_response.json()["final_outputs"]["node_2"][0]["value"]["limit"] == 2

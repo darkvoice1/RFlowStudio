@@ -14,6 +14,7 @@ WorkflowNodeCategory = Literal[
 ]
 WorkflowNodeExecutorKind = Literal["builtin", "script", "analysis", "report"]
 WorkflowNodeSource = Literal["builtin", "plugin"]
+WorkflowNodePortPayloadKind = Literal["value", "reference"]
 
 
 class WorkflowNodeSchemaModel(BaseModel):
@@ -30,6 +31,17 @@ class WorkflowNodePortSchema(WorkflowNodeSchemaModel):
     data_type: str = "any"
     required: bool = False
     description: str | None = None
+
+
+class WorkflowNodePortResult(WorkflowNodeSchemaModel):
+    """节点运行时单个端口的结果结构。"""
+
+    key: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    data_type: str = "any"
+    payload_kind: WorkflowNodePortPayloadKind = "value"
+    value: Any | None = None
+    reference: dict[str, Any] | None = None
 
 
 class WorkflowNodeDefinitionResponse(WorkflowNodeSchemaModel):

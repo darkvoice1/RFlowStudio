@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from app.schemas.workflow_definition import WorkflowSchemaModel
+from app.schemas.workflow_node import WorkflowNodePortResult
 
 WorkflowExecutionRunStatus = Literal["succeeded", "failed"]
 WorkflowExecutionStepStatus = Literal["succeeded", "failed"]
@@ -25,8 +26,8 @@ class WorkflowExecutionStepResult(WorkflowSchemaModel):
     node_name: str = Field(min_length=1, max_length=255)
     sequence: int = Field(ge=1)
     status: WorkflowExecutionStepStatus
-    inputs: dict[str, Any] = Field(default_factory=dict)
-    outputs: dict[str, Any] = Field(default_factory=dict)
+    inputs: list[WorkflowNodePortResult] = Field(default_factory=list)
+    outputs: list[WorkflowNodePortResult] = Field(default_factory=list)
     error_message: str | None = None
 
 
@@ -48,5 +49,5 @@ class WorkflowExecutionRunResponse(WorkflowSchemaModel):
     total: int = Field(ge=0)
     succeeded_steps: int = Field(ge=0)
     steps: list[WorkflowExecutionStepResult] = Field(default_factory=list)
-    final_outputs: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    final_outputs: dict[str, list[WorkflowNodePortResult]] = Field(default_factory=dict)
     failure: WorkflowExecutionFailure | None = None

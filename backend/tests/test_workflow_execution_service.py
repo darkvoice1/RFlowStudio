@@ -91,10 +91,15 @@ def test_workflow_execution_service_can_run_two_node_dag() -> None:
 
     assert run.status == "succeeded"
     assert run.succeeded_steps == 2
-    assert run.steps[0].outputs["dataset_ref"]["source"] == "uploaded_csv"
-    assert run.steps[1].inputs["dataset_ref"]["source"] == "uploaded_csv"
-    assert run.steps[1].outputs["preview_table"]["rows"][0]["row_index"] == 1
-    assert run.final_outputs["node_preview"]["preview_table"]["limit"] == 2
+    assert run.steps[0].outputs[0].key == "dataset_ref"
+    assert run.steps[0].outputs[0].payload_kind == "reference"
+    assert run.steps[0].outputs[0].reference["source"] == "uploaded_csv"
+    assert run.steps[1].inputs[0].key == "dataset_ref"
+    assert run.steps[1].inputs[0].reference["source"] == "uploaded_csv"
+    assert run.steps[1].outputs[0].key == "preview_table"
+    assert run.steps[1].outputs[0].payload_kind == "value"
+    assert run.steps[1].outputs[0].value["rows"][0]["row_index"] == 1
+    assert run.final_outputs["node_preview"][0].value["limit"] == 2
 
 
 def test_workflow_execution_service_reports_failed_plugin_node(tmp_path: Path) -> None:

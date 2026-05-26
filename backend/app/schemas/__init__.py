@@ -26,6 +26,7 @@ from app.schemas.workflow_execution_run import (
 from app.schemas.workflow_node import (
     WorkflowNodeDefinitionListResponse,
     WorkflowNodeDefinitionResponse,
+    WorkflowNodePortResult,
     WorkflowNodePortSchema,
 )
 from app.schemas.workflow_plan import (
@@ -58,6 +59,7 @@ __all__ = [
     "WorkflowExecutionFailure",
     "WorkflowExecutionRunResponse",
     "WorkflowNodePortSchema",
+    "WorkflowNodePortResult",
     "WorkflowNodeDefinitionResponse",
     "WorkflowNodeDefinitionListResponse",
 ]

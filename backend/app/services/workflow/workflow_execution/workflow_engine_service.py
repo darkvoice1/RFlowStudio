@@ -12,7 +12,11 @@ from app.schemas.workflow_execution_run import (
     WorkflowExecutionRunResponse,
     WorkflowExecutionStepResult,
 )
-from app.schemas.workflow_node import WorkflowNodeDefinitionResponse
+from app.schemas.workflow_node import (
+    WorkflowNodeDefinitionResponse,
+    WorkflowNodePortResult,
+    WorkflowNodePortSchema,
+)
 from app.schemas.workflow_plan import WorkflowExecutionPlanResponse, WorkflowExecutionPlanStep
 from app.services.workflow.workflow_execution.executors.base import (
     WorkflowNodeExecutionRequest,
@@ -70,8 +74,8 @@ class WorkflowEngineService:
                         node_name=node.name,
                         sequence=step.sequence,
                         status="failed",
-                        inputs=inputs,
-                        outputs={},
+                        inputs=self._serialize_ports(definition.input_schema, inputs),
+                        outputs=[],
                         error_message=error_message,
                     )
                 )
@@ -82,7 +86,11 @@ class WorkflowEngineService:
                     total=len(plan.steps),
                     succeeded_steps=len(step_results) - 1,
                     steps=step_results,
-                    final_outputs={},
+                    final_outputs=self._build_final_outputs(
+                        plan.steps,
+                        node_outputs,
+                        definition_map,
+                    ),
                     failure=WorkflowExecutionFailure(
                         node_id=node.id,
                         node_key=node.node_key,
@@ -100,12 +108,12 @@ class WorkflowEngineService:
                     node_name=node.name,
                     sequence=step.sequence,
                     status="succeeded",
-                    inputs=inputs,
-                    outputs=outputs,
+                    inputs=self._serialize_ports(definition.input_schema, inputs),
+                    outputs=self._serialize_ports(definition.output_schema, outputs),
                 )
             )
 
-        final_outputs = self._build_final_outputs(plan.steps, node_outputs)
+        final_outputs = self._build_final_outputs(plan.steps, node_outputs, definition_map)
         return WorkflowExecutionRunResponse(
             workflow_id=workflow.id,
             workflow_name=workflow.name,
@@ -159,9 +167,10 @@ class WorkflowEngineService:
         self,
         steps: list[WorkflowExecutionPlanStep],
         node_outputs: dict[str, dict[str, object]],
-    ) -> dict[str, dict[str, object]]:
+        definition_map: dict[str, WorkflowNodeDefinitionResponse],
+    ) -> dict[str, list[WorkflowNodePortResult]]:
         """收集没有下游连线的终点节点输出。"""
-        final_outputs: dict[str, dict[str, object]] = {}
+        final_outputs: dict[str, list[WorkflowNodePortResult]] = {}
         for step in steps:
             if step.outgoing_bindings:
                 continue
@@ -170,5 +179,83 @@ class WorkflowEngineService:
             if outputs is None:
                 continue
 
-            final_outputs[step.node_id] = outputs
+            final_outputs[step.node_id] = self._serialize_ports(
+                definition_map[step.node_id].output_schema,
+                outputs,
+            )
         return final_outputs
+
+    def _serialize_ports(
+        self,
+        port_schema: list[WorkflowNodePortSchema],
+        payloads: dict[str, object],
+    ) -> list[WorkflowNodePortResult]:
+        """把节点输入输出字典规范成带端口元信息的结构。"""
+        schema_map = {port.key: port for port in port_schema}
+        serialized: list[WorkflowNodePortResult] = []
+        used_keys: set[str] = set()
+
+        for port in port_schema:
+            if port.key not in payloads:
+                continue
+            serialized.append(self._build_port_result(port, payloads[port.key]))
+            used_keys.add(port.key)
+
+        for key, value in payloads.items():
+            if key in used_keys:
+                continue
+            fallback_port = schema_map.get(key) or WorkflowNodePortSchema(key=key, name=key)
+            should_reference = self._should_store_as_reference(key, value, None)
+            serialized.append(
+                WorkflowNodePortResult(
+                    key=key,
+                    name=key,
+                    data_type=fallback_port.data_type,
+                    payload_kind="reference" if should_reference else "value",
+                    value=None if should_reference else value,
+                    reference=(
+                        value
+                        if should_reference and isinstance(value, dict)
+                        else None
+                    ),
+                )
+            )
+        return serialized
+
+    def _build_port_result(
+        self,
+        port: WorkflowNodePortSchema,
+        payload: object,
+    ) -> WorkflowNodePortResult:
+        """构造单个端口的标准结果。"""
+        payload_kind = (
+            "reference"
+            if self._should_store_as_reference(port.key, payload, port)
+            else "value"
+        )
+        return WorkflowNodePortResult(
+            key=port.key,
+            name=port.name,
+            data_type=port.data_type,
+            payload_kind=payload_kind,
+            value=None if payload_kind == "reference" else payload,
+            reference=(
+                payload
+                if payload_kind == "reference" and isinstance(payload, dict)
+                else None
+            ),
+        )
+
+    def _should_store_as_reference(
+        self,
+        port_key: str,
+        payload: object,
+        port: WorkflowNodePortSchema | None,
+    ) -> bool:
+        """判断当前端口结果应以内联值还是引用形式回传。"""
+        data_type = (port.data_type if port is not None else "").strip().lower()
+        if data_type in {"dataset", "resource", "artifact"}:
+            return True
+        if port_key.endswith("_ref") and isinstance(payload, dict):
+            return True
+        return False
