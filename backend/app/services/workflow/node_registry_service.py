@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import json
+import importlib.util
+from pathlib import Path
 
 from app.core.config import BACKEND_DIR
 from app.core.exceptions import ResourceNotFoundError
@@ -81,19 +82,36 @@ class WorkflowNodeRegistryService:
             return {}
 
         definitions: dict[str, WorkflowNodeDefinitionResponse] = {}
-        for node_dir in sorted(self.builtin_nodes_root.iterdir()):
-            if not node_dir.is_dir():
+        for node_file_path in sorted(self.builtin_nodes_root.rglob("*.py")):
+            if node_file_path.name == "__init__.py":
                 continue
-
-            manifest_path = node_dir / "manifest.json"
-            if not manifest_path.exists():
-                continue
-
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload = self._load_builtin_node_definition(node_file_path)
             definition = WorkflowNodeDefinitionResponse.model_validate(payload)
             definitions[definition.key] = definition
 
         return definitions
+
+    def _load_builtin_node_definition(self, node_file_path: Path) -> dict[str, object]:
+        """从单文件节点中读取节点定义。"""
+        module = self._load_module_from_path(
+            file_path=node_file_path,
+            module_name_prefix="builtin_node_definition",
+        )
+        payload = getattr(module, "NODE_DEFINITION", None)
+        if not isinstance(payload, dict):
+            raise ValueError(f"内置节点文件缺少合法的 NODE_DEFINITION：{node_file_path}")
+        return payload
+
+    def _load_module_from_path(self, *, file_path: Path, module_name_prefix: str):
+        """按文件路径动态加载 Python 模块。"""
+        module_name = f"{module_name_prefix}_{file_path.stem}_{abs(hash(file_path.as_posix()))}"
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            raise ValueError(f"无法加载节点文件：{file_path}")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
     def _map_plugin_category(self, category: str) -> str:
         """把插件清单分类映射为统一节点分类。"""

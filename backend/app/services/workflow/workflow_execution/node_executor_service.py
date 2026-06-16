@@ -6,14 +6,11 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Callable
 
+from app.core.config import BACKEND_DIR
 from app.core.exceptions import ValidationError
 from app.schemas.plugin import PluginManifestRecord
 from app.schemas.workflow_node import WorkflowNodeDefinitionResponse
 from app.services.platform import PluginRegistryService
-from app.services.workflow.workflow_execution.executors import (
-    DatasetInputExecutor,
-    DatasetPreviewExecutor,
-)
 from app.services.workflow.workflow_execution.executors.base import (
     WorkflowNodeExecutionRequest,
     WorkflowNodeExecutor,
@@ -54,10 +51,8 @@ class WorkflowNodeExecutorService:
 
     def __init__(self, plugin_registry_service: PluginRegistryService | None = None) -> None:
         self.plugin_registry_service = plugin_registry_service or PluginRegistryService()
-        self._builtin_executors: dict[str, WorkflowNodeExecutor] = {
-            "dataset_input": DatasetInputExecutor(),
-            "dataset_preview": DatasetPreviewExecutor(),
-        }
+        self.builtin_nodes_root = BACKEND_DIR / "app" / "nodes" / "builtin"
+        self._builtin_executor_cache: dict[str, WorkflowNodeExecutor] = {}
         self._plugin_executor_cache: dict[str, WorkflowNodeExecutor] = {}
 
     def execute_node(self, request: WorkflowNodeExecutionRequest) -> dict[str, Any]:
@@ -71,10 +66,7 @@ class WorkflowNodeExecutorService:
     ) -> WorkflowNodeExecutor:
         """根据节点来源解析执行器对象。"""
         if definition.source == "builtin":
-            executor = self._builtin_executors.get(definition.key)
-            if executor is None:
-                raise ValidationError(f"内置节点 {definition.key} 尚未接入执行器。")
-            return executor
+            return self._load_builtin_executor(definition)
 
         plugin = self._find_plugin_manifest(definition.key)
         cached_executor = self._plugin_executor_cache.get(plugin.id)
@@ -122,3 +114,35 @@ class WorkflowNodeExecutorService:
             )
 
         return PythonFunctionExecutorAdapter(execute_fn)
+
+    def _load_builtin_executor(
+        self,
+        definition: WorkflowNodeDefinitionResponse,
+    ) -> WorkflowNodeExecutor:
+        """从内置节点单文件中加载执行器。"""
+        cached_executor = self._builtin_executor_cache.get(definition.key)
+        if cached_executor is not None:
+            return cached_executor
+
+        node_file_path = self._find_builtin_node_file(definition.key)
+        module_name = f"builtin_node_executor_{definition.key}"
+        spec = importlib.util.spec_from_file_location(module_name, node_file_path)
+        if spec is None or spec.loader is None:
+            raise ValidationError(f"内置节点 {definition.key} 的节点文件无法加载。")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        execute_fn = getattr(module, "execute", None)
+        if not callable(execute_fn):
+            raise ValidationError(f"内置节点 {definition.key} 缺少 execute 函数入口。")
+
+        executor = PythonFunctionExecutorAdapter(execute_fn)
+        self._builtin_executor_cache[definition.key] = executor
+        return executor
+
+    def _find_builtin_node_file(self, node_key: str) -> Path:
+        """按节点 key 查找内置节点代码文件。"""
+        matched_paths = sorted(self.builtin_nodes_root.rglob(f"{node_key}.py"))
+        if not matched_paths:
+            raise ValidationError(f"内置节点 {node_key} 尚未接入节点文件。")
+        return matched_paths[0]
